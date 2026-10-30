@@ -146,7 +146,12 @@ if (-not (Test-Path $wlx64)) { throw "Не найден $wlx64 — собери�
 # --- 3. Копирование: общие файлы из x64 + .wlx (x86) + .wlx64 (x64) ---
 $pluginDir = Join-Path $tcDir 'Plugins\wlx\MarkdownLister'
 Write-Host "Копирование в $pluginDir ..."
-if (Test-Path $pluginDir) { Remove-Item $pluginDir -Recurse -Force }
+if (Test-Path $pluginDir) {
+    try { Remove-Item $pluginDir -Recurse -Force -ErrorAction Stop }
+    catch {
+        throw "Не могу удалить старые файлы плагина — скорее всего Total Commander запущен и держит их. Закройте Total Commander и повторите установку."
+    }
+}
 New-Item -ItemType Directory -Force -Path $pluginDir | Out-Null
 Copy-Item (Join-Path $x64 '*') $pluginDir -Recurse -Force
 Remove-Item (Join-Path $pluginDir 'MarkdownLister.wlx64') -Force -ErrorAction SilentlyContinue
