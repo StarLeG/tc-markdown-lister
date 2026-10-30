@@ -79,16 +79,25 @@ function Register-Plugin {
     $flush = {
         if ($section.Count -eq 0 -and -not $script:sectionSeen) { return }
         $drop = @{}
+        foreach ($s in $section) {
+            if ($s -match '^\s*(\d+)=') {
+                # Номер сохраняем в переменную: повторный -match перезаписал бы $Matches
+                $num = [int]$Matches[1]
+                if ($s -match 'MarkdownLister\.wlx') { $drop[[string]$num] = $true }
+            }
+        }
         $maxNum = -1
         foreach ($s in $section) {
             if ($s -match '^\s*(\d+)=') {
+                # Запись плагина (N=...) — удаляем, число сохраняем до следующих -match
                 $num = [int]$Matches[1]
+                if ($drop.ContainsKey([string]$num)) { continue }
                 if ($num -gt $maxNum) { $maxNum = $num }
-                if ($s -match 'MarkdownLister\.wlx') { $drop[$Matches[1]] = $true }
+                $kept.Add($s)
+                continue
             }
-        }
-        foreach ($s in $section) {
             if ($s -match '^\s*(\d+)_\w+=') {
+                # Спутанные строки (N_detect=...) удаляем вместе с записью
                 if ($drop.ContainsKey($Matches[1])) { continue }
             }
             $kept.Add($s)
