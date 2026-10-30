@@ -1,0 +1,20 @@
+# Visual Studio / .NET
+.vs/
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Claude Code — содержит токены, не коммитить
+.claude/settings.json
+.claude/settings.local.json
+
+# Приватное ТЗ — только локально
+promt.md
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
