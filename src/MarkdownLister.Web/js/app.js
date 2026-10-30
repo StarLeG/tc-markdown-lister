@@ -120,16 +120,17 @@
   }
 
   function setTheme(theme) {
-    const app = $('#app');
-    app.classList.remove('theme-light', 'theme-dark');
+    // Класс темы — на <html>: body должен видеть CSS-переменные (--fg, --bg и др.)
+    const root = document.documentElement;
+    root.classList.remove('theme-light', 'theme-dark');
     if (theme === 'Light') {
-      app.classList.add('theme-light');
+      root.classList.add('theme-light');
     } else if (theme === 'Dark') {
-      app.classList.add('theme-dark');
+      root.classList.add('theme-dark');
     } else {
       // System: по предпочтению ОС
       const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-      app.classList.add(prefersDark ? 'theme-dark' : 'theme-light');
+      root.classList.add(prefersDark ? 'theme-dark' : 'theme-light');
     }
     state.settings.theme = theme;
   }
@@ -464,7 +465,7 @@
 
     mermaid.initialize({
       startOnLoad: false,
-      theme: $('#app').classList.contains('theme-dark') ? 'dark' : 'default',
+      theme: document.documentElement.classList.contains('theme-dark') ? 'dark' : 'default',
       securityLevel: 'strict',
     });
 

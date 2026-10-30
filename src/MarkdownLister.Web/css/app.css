@@ -383,11 +383,15 @@ pre.line-numbers .line-numbers-rows > span::before {
   display: block;
   overflow-x: auto;
 }
+/* Цвета ячеек — явно (а не только наследованием): иначе в тёмной теме
+   текст строк сливался с серой зеброй. */
 .markdown-body th, .markdown-body td {
   padding: 6px 13px;
   border: 1px solid var(--border);
+  color: var(--fg);
 }
-.markdown-body th { font-weight: 600; background: var(--table-stripe); }
+.markdown-body tr { background: var(--bg); }
+.markdown-body th { font-weight: 600; background: var(--bg-alt); }
 .markdown-body tr:nth-child(2n) { background: var(--table-stripe); }
 
 .markdown-body img {

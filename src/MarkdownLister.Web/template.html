@@ -1,5 +1,7 @@
 <!DOCTYPE html>
-<html lang="ru">
+<!-- Класс темы (theme-light/theme-dark) — на <html>, а не на #app: иначе body
+     (предок #app) не видит CSS-переменные и текст документа остаётся чёрным. -->
+<html lang="ru" class="theme-dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -12,7 +14,7 @@
 </head>
 <body>
 
-<div id="app" class="theme-dark">
+<div id="app">
 
   <!-- Боковая панель: оглавление -->
   <aside id="sidebar">
