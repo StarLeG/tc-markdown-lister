@@ -2,6 +2,7 @@
 // Ядро MarkdownLister: рендеринг Markdown в HTML через Markdig.
 
 using Markdig;
+using Markdig.Extensions.AutoIdentifiers;
 using Markdig.Extensions.Yaml;
 
 namespace MarkdownLister.Core
@@ -15,6 +16,12 @@ namespace MarkdownLister.Core
         public MarkdownRenderer()
         {
             _pipeline = new MarkdownPipelineBuilder()
+                // Якоря заголовков — в стиле GitHub (кириллица сохраняется), чтобы клики
+                // по оглавлениям документов работали. Должно идти ДО UseAdvancedExtensions:
+                // Advanced добавляет AutoIdentifiers с Default-алгоритмом (id вида "i",
+                // "section"), а повторный вызов UseAutoIdentifiers существующее расширение
+                // не заменяет.
+                .UseAutoIdentifiers(AutoIdentifierOptions.GitHub)
                 .UseAdvancedExtensions()   // таблицы, сноски, списки задач, автоссылки и др.
                 .UseYamlFrontMatter()      // YAML front matter (игнорируется при рендеринге)
                 .Build();

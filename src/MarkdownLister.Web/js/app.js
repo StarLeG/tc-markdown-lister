@@ -181,6 +181,8 @@
 
   function scrollToHeading(id) {
     if (!id) return;
+    // href в Markdown кодируется (например, кириллица в якорях) — раскодируем
+    try { id = decodeURIComponent(id); } catch (e) { /* оставляем как есть */ }
     let el = document.getElementById(id);
     if (!el) {
       // Якорь, возможно, не пережил санитизацию — ищем по тексту заголовка
