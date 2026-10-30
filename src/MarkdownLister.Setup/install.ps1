@@ -135,13 +135,19 @@ function Register-Plugin {
 $tcDir = Find-TotalCommander
 Write-Host "Total Commander: $tcDir"
 
-# --- 2. Комплект из dist ---
-$x64 = Join-Path $SourceDir 'x64'
-$x86 = Join-Path $SourceDir 'x86'
-$wlx86 = Join-Path $x86 'MarkdownLister.wlx'
-$wlx64 = Join-Path $x64 'MarkdownLister.wlx64'
-if (-not (Test-Path $wlx86)) { throw "Не найден $wlx86 — соберите плагин: build.ps1" }
-if (-not (Test-Path $wlx64)) { throw "Не найден $wlx64 — соберите плагин: build.ps1" }
+# --- 2. Комплект: dist\ при сборке из репозитория либо папка MarkdownLister\
+#        рядом со скриптом (режим архива релиза) ---
+$commonDir = Join-Path $SourceDir 'x64'
+$wlx86 = Join-Path $SourceDir 'x86\MarkdownLister.wlx'
+$wlx64 = Join-Path $SourceDir 'x64\MarkdownLister.wlx64'
+if (-not ((Test-Path $wlx86) -and (Test-Path $wlx64))) {
+    $flatDir = Join-Path $setupDir 'MarkdownLister'
+    $commonDir = $flatDir
+    $wlx86 = Join-Path $flatDir 'MarkdownLister.wlx'
+    $wlx64 = Join-Path $flatDir 'MarkdownLister.wlx64'
+}
+if (-not (Test-Path $wlx86)) { throw "Не найден $wlx86 — соберите плагин: build.ps1 либо возьмите архив релиза" }
+if (-not (Test-Path $wlx64)) { throw "Не найден $wlx64 — соберите плагин: build.ps1 либо возьмите архив релиза" }
 
 # --- 3. Копирование: общие файлы из x64 + .wlx (x86) + .wlx64 (x64) ---
 $pluginDir = Join-Path $tcDir 'Plugins\wlx\MarkdownLister'
@@ -153,7 +159,8 @@ if (Test-Path $pluginDir) {
     }
 }
 New-Item -ItemType Directory -Force -Path $pluginDir | Out-Null
-Copy-Item (Join-Path $x64 '*') $pluginDir -Recurse -Force
+Copy-Item (Join-Path $commonDir '*') $pluginDir -Recurse -Force
+Remove-Item (Join-Path $pluginDir 'MarkdownLister.wlx') -Force -ErrorAction SilentlyContinue
 Remove-Item (Join-Path $pluginDir 'MarkdownLister.wlx64') -Force -ErrorAction SilentlyContinue
 Copy-Item $wlx86 (Join-Path $pluginDir 'MarkdownLister.wlx') -Force
 Copy-Item $wlx64 (Join-Path $pluginDir 'MarkdownLister.wlx64') -Force
