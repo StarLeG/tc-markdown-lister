@@ -1,0 +1,10 @@
+{
+  "name": "Solarized Dark",
+  "description": "Тёмная палитра Solarized, подсветка кода Solarized Dark.",
+  "theme": "Dark",
+  "codeTheme": "solarized-dark",
+  "zoom": 100,
+  "readingWidth": 900,
+  "showLineNumbers": true,
+  "showToc": true
+}

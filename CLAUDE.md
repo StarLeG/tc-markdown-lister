@@ -35,8 +35,19 @@ MarkdownLister/
 
 ## Сборка
 
-- MSBuild (Visual Studio 2022) или `build.ps1`; выход — `.wlx` для x86 и x64 с регистрацией в Total Commander. Скриптов сборки ещё нет — это целевые команды.
+- `build.ps1` (PowerShell 5.1+, MSBuild VS 2022/BuildTools): restore → сборка x86 и x64 → fail-fast проверка unmanaged-экспорта (11 WLX-функций) → `dist\x86\MarkdownLister.wlx` и `dist\x64\MarkdownLister.wlx64`.
+- `MarkdownLister.sln` — для IDE (Debug/Release × Any CPU/x86/x64); платформенные артефакты даёт именно `build.ps1`.
+- Обе платформы пишут в один `bin\...\net48`, поэтому dist копируется сразу после каждого прохода; `Rebuild` обязателен — смена `PlatformTarget` не меняет таймстампов входов.
 - Тесты и линтеры ТЗ не предусматривает.
+
+## DllExport (3F, v1.8.1) — особенности сборки
+
+Unmanaged-экспорт WLX-функций делает DllExport (ILAsm-проходка). Два известных бага обходятся обёрткой `tools\ildasmwrap\Program.cs` (сборка `tools\iltools\ildasm.exe`, генерируется таргетом `MarkdownListerPrepareIlTools`):
+
+1. **0 экспортов при «зелёной» сборке**: ildasm из форка 3F/coreclr закрывает тела P/Invoke-методов голой `}` без `// end of method ...`; парсер DllExport (MethodParserAction) на таком теле «залипает» и не доходит до экспортных типов. Обёртка дописывает к пустым телам `// end of method patched`.
+2. **«Зависание» ilasm / syntax error**: ildasm может выдать BOM UTF-16 при теле UTF-8; ilasm читает файл по BOM и падает с mojibake. Обёртка всегда переписывает выходной IL в UTF-8 с BOM.
+
+Из-за бага №1 P/Invoke-методы нельзя объявлять в экспортируемых классах до экспортных: любая перестановка требует проверки экспорта (`build.ps1` делает её автоматически). Атрибут `[DllExport]` берётся из обфусцированного namespace (см. `DllExportNamespace` в `MarkdownLister.WLX.csproj`) — не сокращать.
 
 ## Метаданные автора (обязательно)
 
@@ -53,4 +64,4 @@ MarkdownLister/
 
 ## Версионирование
 
-SemVer (`MAJOR.MINOR.PATCH`, ровно три компонента): номер — в одном месте, `.csproj`; в коде и скриптах упаковки не хардкодится. Полные правила и сверка перед тегом — скилл `semver`.
+SemVer (`MAJOR.MINOR.PATCH`, ровно три компонента): номер — в одном месте, `Directory.Build.props`; в коде и скриптах упаковки не хардкодится. Полные правила и сверка перед тегом — скилл `semver`.

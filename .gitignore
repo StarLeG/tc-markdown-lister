@@ -14,6 +14,15 @@
 # Приватное ТЗ — только локально
 promt.md
 
+# Сгенерированные инструменты DllExport (ilasm + обёртка ildasm) — восстанавливаются при сборке
+tools/iltools/
+
+# Staging-каталог Sdks для BuildTools-MSBuild (см. build.ps1)
+.build/
+
+# Дистрибутив сборки (создаётся build.ps1)
+dist/
+
 # OS
 Thumbs.db
 Desktop.ini

@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>MarkdownLister.Core</RootNamespace>
+    <AssemblyName>MarkdownLister.Core</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Description>Парсинг Markdown, настройки, рендеринг — ядро плагина MarkdownLister</Description>
+    <!--
+      Ядро — чистый AnyCPU независимо от PlatformTarget сборки WLX (x86/x64):
+      иначе MSB3270 при кросс-сборке (свойство наследуется из командной строки).
+    -->
+    <PlatformTarget>AnyCPU</PlatformTarget>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Поддержка net48 без установленного Targeting Pack -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="Markdig" Version="1.5.1" />
+    <PackageReference Include="UTF.Unknown" Version="2.8.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- JavaScriptSerializer: чтение JSON-пресетов тем (themes\*.json) -->
+    <Reference Include="System.Web.Extensions" />
+  </ItemGroup>
+
+</Project>

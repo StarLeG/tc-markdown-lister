@@ -1,0 +1,10 @@
+{
+  "name": "Light",
+  "description": "Светлая тема в стиле GitHub, подсветка кода GitHub Light.",
+  "theme": "Light",
+  "codeTheme": "github",
+  "zoom": 100,
+  "readingWidth": 900,
+  "showLineNumbers": true,
+  "showToc": true
+}

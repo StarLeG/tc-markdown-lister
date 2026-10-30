@@ -1,0 +1,9 @@
+[plugininstall]
+description=MarkdownLister - Markdown viewer (GFM, Mermaid, KaTeX, themes, split view)
+description_ru=MarkdownLister - просмотр Markdown (GFM, Mermaid, KaTeX, темы, split view)
+author=Старинский Олег Григорьевич (info@electroman.by, @ElectroManBY)
+type=wlx
+defaultdir=MarkdownLister
+file=MarkdownLister.wlx
+file64=MarkdownLister.wlx64
+detect="EXT="MD" | EXT="MARKDOWN" | EXT="MKD" | EXT="MDOWN" | EXT="MDX""

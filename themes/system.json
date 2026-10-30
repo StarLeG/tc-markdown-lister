@@ -1,0 +1,10 @@
+{
+  "name": "System",
+  "description": "Системная тема: следует настройкам Windows (светлая/тёмная), подсветка кода GitHub Dark.",
+  "theme": "System",
+  "codeTheme": "github-dark",
+  "zoom": 100,
+  "readingWidth": 900,
+  "showLineNumbers": true,
+  "showToc": true
+}

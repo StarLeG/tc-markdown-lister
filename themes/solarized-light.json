@@ -1,0 +1,10 @@
+{
+  "name": "Solarized Light",
+  "description": "Светлая палитра Solarized, подсветка кода Solarized Light.",
+  "theme": "Light",
+  "codeTheme": "solarized-light",
+  "zoom": 100,
+  "readingWidth": 900,
+  "showLineNumbers": true,
+  "showToc": true
+}

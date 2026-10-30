@@ -1,0 +1,459 @@
+/* Автор: Старинский Олег Григорьевич (info@electroman.by, @ElectroManBY)
+   MarkdownLister: стили интерфейса и рендеринга Markdown (стиль GitHub). */
+
+/* ---------- Переменные тем ---------- */
+:root {
+  --font-ui: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --zoom: 1;
+  --reading-width: 900px;
+}
+
+.theme-light {
+  --bg: #ffffff;
+  --bg-alt: #f6f8fa;
+  --fg: #1f2328;
+  --fg-muted: #656d76;
+  --border: #d1d9e0;
+  --link: #0969da;
+  --accent: #0969da;
+  --mark-bg: #fff8c5;
+  --mark-bg-active: #ffd33d;
+  --code-bg: #f6f8fa;
+  --code-fg: #1f2328;
+  --blockquote-border: #d1d9e0;
+  --blockquote-fg: #656d76;
+  --table-stripe: #f6f8fa;
+  --shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+
+.theme-dark {
+  --bg: #0d1117;
+  --bg-alt: #161b22;
+  --fg: #e6edf3;
+  --fg-muted: #8b949e;
+  --border: #30363d;
+  --link: #58a6ff;
+  --accent: #58a6ff;
+  --mark-bg: #4d3800;
+  --mark-bg-active: #9e6a03;
+  --code-bg: #161b22;
+  --code-fg: #e6edf3;
+  --blockquote-border: #3d444d;
+  --blockquote-fg: #8b949e;
+  --table-stripe: #161b22;
+  --shadow: 0 1px 3px rgba(0,0,0,.4);
+}
+
+/* ---------- Каркас ---------- */
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-ui);
+  font-size: calc(16px * var(--zoom));
+  color: var(--fg);
+  background: var(--bg);
+}
+
+#app {
+  display: flex;
+  height: 100vh;
+}
+
+/* ---------- Боковая панель (TOC) ---------- */
+#sidebar {
+  width: 260px;
+  min-width: 180px;
+  max-width: 420px;
+  flex-shrink: 0;
+  background: var(--bg-alt);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#sidebar[hidden] { display: none; }
+
+#sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  font-size: .85em;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--fg-muted);
+}
+
+#btn-close-sidebar {
+  border: none;
+  background: none;
+  color: var(--fg-muted);
+  font-size: 1.2em;
+  cursor: pointer;
+  padding: 0 4px;
+}
+#btn-close-sidebar:hover { color: var(--fg); }
+
+#toc {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0 20px;
+}
+
+#toc a {
+  display: block;
+  padding: 4px 14px;
+  color: var(--fg-muted);
+  text-decoration: none;
+  font-size: .88em;
+  line-height: 1.45;
+  border-left: 2px solid transparent;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#toc a:hover { color: var(--fg); background: var(--bg); }
+#toc a.active {
+  color: var(--accent);
+  border-left-color: var(--accent);
+  background: var(--bg);
+}
+#toc a[data-level="1"] { font-weight: 600; color: var(--fg); }
+#toc a[data-level="2"] { padding-left: 28px; }
+#toc a[data-level="3"] { padding-left: 42px; }
+#toc a[data-level="4"] { padding-left: 56px; }
+#toc a[data-level="5"] { padding-left: 70px; }
+#toc a[data-level="6"] { padding-left: 84px; }
+
+/* ---------- Основная область ---------- */
+#main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* ---------- Панель поиска ---------- */
+#search-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--bg-alt);
+  border-bottom: 1px solid var(--border);
+}
+#search-bar[hidden] { display: none; }
+
+#search-input {
+  flex: 1;
+  max-width: 420px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: .9em;
+  outline: none;
+}
+#search-input:focus { border-color: var(--accent); }
+
+#search-count {
+  font-size: .82em;
+  color: var(--fg-muted);
+  min-width: 60px;
+  text-align: center;
+}
+
+#search-bar button {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: .9em;
+}
+#search-bar button:hover { background: var(--bg-alt); border-color: var(--accent); }
+
+mark.search-hit {
+  background: var(--mark-bg);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+mark.search-hit.current {
+  background: var(--mark-bg-active);
+  outline: 1px solid var(--accent);
+}
+
+/* ---------- Контент ---------- */
+#content-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  scroll-behavior: auto;
+}
+
+#content {
+  max-width: var(--reading-width);
+  margin: 0 auto;
+  padding: 28px 40px 80px;
+}
+
+#btn-top {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+  color: var(--fg);
+  font-size: 1.1em;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s;
+}
+#btn-top.visible { opacity: 1; pointer-events: auto; }
+#btn-top:hover { background: var(--border); }
+
+/* ---------- Split view: исходник ---------- */
+#source-scroll {
+  flex: 1;
+  overflow: auto;
+  border-top: 2px solid var(--border);
+  background: var(--bg-alt);
+}
+#source-scroll[hidden] { display: none; }
+
+#source-text {
+  margin: 0;
+  padding: 16px 20px;
+  font-family: var(--font-mono);
+  font-size: calc(13px * var(--zoom));
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: var(--fg);
+  user-select: text;
+}
+
+/* ---------- Статус-строка ---------- */
+#status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 14px;
+  background: var(--bg-alt);
+  border-top: 1px solid var(--border);
+  font-size: .78em;
+  color: var(--fg-muted);
+  user-select: none;
+}
+#status-bar .sep { opacity: .5; }
+#status-bar .flex-spacer { flex: 1; }
+
+/* =====================================================
+   Рендеринг Markdown (стиль GitHub)
+   ===================================================== */
+.markdown-body {
+  line-height: 1.65;
+  word-wrap: break-word;
+}
+
+.markdown-body > *:first-child { margin-top: 0 !important; }
+
+.markdown-body h1, .markdown-body h2, .markdown-body h3,
+.markdown-body h4, .markdown-body h5, .markdown-body h6 {
+  margin-top: 1.6em;
+  margin-bottom: .7em;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.markdown-body h1 { font-size: 1.9em; padding-bottom: .3em; border-bottom: 1px solid var(--border); }
+.markdown-body h2 { font-size: 1.5em; padding-bottom: .25em; border-bottom: 1px solid var(--border); }
+.markdown-body h3 { font-size: 1.22em; }
+.markdown-body h4 { font-size: 1.05em; }
+.markdown-body h5 { font-size: .95em; }
+.markdown-body h6 { font-size: .9em; color: var(--fg-muted); }
+
+.markdown-body p { margin: .75em 0; }
+.markdown-body a { color: var(--link); text-decoration: none; }
+.markdown-body a:hover { text-decoration: underline; }
+
+.markdown-body ul, .markdown-body ol { margin: .75em 0; padding-left: 2em; }
+.markdown-body li { margin: .28em 0; }
+.markdown-body li > p { margin: .35em 0; }
+.markdown-body li.task-list-item { list-style: none; margin-left: -1.5em; }
+.markdown-body li.task-list-item input[type="checkbox"] { margin-right: .5em; vertical-align: middle; }
+
+.markdown-body blockquote {
+  margin: .9em 0;
+  padding: .15em 1.1em;
+  color: var(--blockquote-fg);
+  border-left: .28em solid var(--blockquote-border);
+}
+
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: .88em;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  padding: .18em .42em;
+  border-radius: 5px;
+}
+
+.markdown-body pre {
+  margin: 1em 0;
+  padding: 14px 16px;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-x: auto;
+  position: relative;
+}
+.markdown-body pre code {
+  background: none;
+  padding: 0;
+  font-size: .86em;
+  line-height: 1.55;
+}
+
+/* Кнопка копирования кода */
+.code-block { position: relative; }
+.copy-btn {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  padding: 3px 9px;
+  font-size: .72em;
+  font-family: var(--font-ui);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-alt);
+  color: var(--fg-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.code-block:hover .copy-btn { opacity: 1; }
+.copy-btn:hover { color: var(--fg); border-color: var(--accent); }
+
+/* Номера строк */
+pre.line-numbers .line-numbers-rows {
+  position: absolute;
+  top: 0; left: 0;
+  width: 3em;
+  padding: inherit;
+  border-right: 1px solid var(--border);
+  text-align: right;
+  user-select: none;
+  pointer-events: none;
+}
+pre.line-numbers code { padding-left: 3.6em; display: block; }
+pre.line-numbers .line-numbers-rows > span {
+  display: block;
+  counter-increment: linenumber;
+}
+pre.line-numbers .line-numbers-rows > span::before {
+  content: counter(linenumber);
+  color: var(--fg-muted);
+  opacity: .65;
+}
+
+.markdown-body table {
+  margin: 1em 0;
+  border-collapse: collapse;
+  width: 100%;
+  display: block;
+  overflow-x: auto;
+}
+.markdown-body th, .markdown-body td {
+  padding: 6px 13px;
+  border: 1px solid var(--border);
+}
+.markdown-body th { font-weight: 600; background: var(--table-stripe); }
+.markdown-body tr:nth-child(2n) { background: var(--table-stripe); }
+
+.markdown-body img {
+  max-width: 100%;
+  border-radius: 6px;
+}
+
+.markdown-body hr {
+  margin: 1.6em 0;
+  border: none;
+  border-top: 2px solid var(--border);
+}
+
+.markdown-body del { color: var(--fg-muted); }
+
+/* Сноски */
+.markdown-body .footnotes {
+  margin-top: 2em;
+  padding-top: 1em;
+  border-top: 1px solid var(--border);
+  font-size: .9em;
+  color: var(--fg-muted);
+}
+
+/* Диаграммы Mermaid */
+.mermaid {
+  margin: 1.2em 0;
+  text-align: center;
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+}
+.mermaid svg { max-width: 100%; height: auto; }
+
+/* Формулы KaTeX */
+.katex-display { margin: 1em 0; overflow-x: auto; overflow-y: hidden; }
+
+/* Якоря заголовков */
+.markdown-body h1 .anchor, .markdown-body h2 .anchor,
+.markdown-body h3 .anchor, .markdown-body h4 .anchor,
+.markdown-body h5 .anchor, .markdown-body h6 .anchor {
+  opacity: 0;
+  margin-left: .35em;
+  color: var(--fg-muted);
+  text-decoration: none;
+}
+.markdown-body h1:hover .anchor, .markdown-body h2:hover .anchor,
+.markdown-body h3:hover .anchor, .markdown-body h4:hover .anchor,
+.markdown-body h5:hover .anchor, .markdown-body h6:hover .anchor { opacity: 1; }
+
+/* YAML front matter — не показываем */
+.front-matter { display: none; }
+
+/* ---------- Печать (Ctrl+P, экспорт PDF) ---------- */
+@media print {
+  #sidebar, #search-bar, #status-bar, #btn-top, .copy-btn, #source-scroll { display: none !important; }
+  #content-scroll { overflow: visible !important; }
+  body { background: #fff; color: #000; overflow: visible; }
+  #content { max-width: none; padding: 0; }
+  .markdown-body a { color: #000; text-decoration: underline; }
+  .markdown-body a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: .82em;
+    color: #555;
+  }
+  .mermaid { break-inside: avoid; }
+  .markdown-body pre { break-inside: avoid; white-space: pre-wrap; }
+}

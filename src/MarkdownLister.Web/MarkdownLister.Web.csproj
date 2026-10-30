@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>MarkdownLister.Web</RootNamespace>
+    <AssemblyName>MarkdownLister.Web</AssemblyName>
+    <Description>HTML/CSS/JS-шаблон и веб-ресурсы плагина MarkdownLister</Description>
+    <!-- Ресурсы не требуют компиляции C#, но проект собирается для копирования контента -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Веб-ресурсы копируются в выходной каталог плагина -->
+  <ItemGroup>
+    <Content Include="template.html" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="css\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="js\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="vendor\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

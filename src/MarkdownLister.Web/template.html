@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https: http:; connect-src 'none'; object-src 'none'; base-uri 'none'">
+<title>MarkdownLister</title>
+<link rel="stylesheet" href="vendor/highlight/styles/github-dark.min.css" id="code-theme">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<div id="app" class="theme-dark">
+
+  <!-- Боковая панель: оглавление -->
+  <aside id="sidebar">
+    <div id="sidebar-header">
+      <span id="sidebar-title">Оглавление</span>
+      <button id="btn-close-sidebar" title="Скрыть оглавление (Ctrl+O)">×</button>
+    </div>
+    <nav id="toc"></nav>
+  </aside>
+
+  <div id="main-area">
+
+    <!-- Панель поиска -->
+    <div id="search-bar" hidden>
+      <input type="text" id="search-input" placeholder="Поиск по документу…">
+      <span id="search-count">0 / 0</span>
+      <button id="search-prev" title="Предыдущее (Shift+Enter)">↑</button>
+      <button id="search-next" title="Следующее (Enter)">↓</button>
+      <button id="search-close" title="Закрыть (Esc)">×</button>
+    </div>
+
+    <!-- Прокрутка документа -->
+    <div id="content-scroll">
+      <article id="content" class="markdown-body"></article>
+      <button id="btn-top" title="Наверх">↑</button>
+    </div>
+
+    <!-- Исходный текст (split view) -->
+    <div id="source-scroll" hidden>
+      <pre id="source-text"></pre>
+    </div>
+
+    <!-- Статус-строка -->
+    <footer id="status-bar">
+      <span id="status-words">0 слов</span>
+      <span class="sep">•</span>
+      <span id="status-time">~1 мин</span>
+      <span class="sep">•</span>
+      <span id="status-headings">0 заголовков</span>
+      <span class="flex-spacer"></span>
+      <span id="status-progress">0%</span>
+    </footer>
+  </div>
+</div>
+
+<!-- Служебные скрипты (порядок важен) -->
+<script src="vendor/dompurify/purify.min.js"></script>
+<script src="vendor/highlight/highlight.min.js"></script>
+<script src="vendor/katex/katex.min.js"></script>
+<script src="vendor/katex/contrib/auto-render.min.js"></script>
+<script src="vendor/mermaid/mermaid.min.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "name": "Dark",
+  "description": "Тёмная тема в стиле GitHub, подсветка кода GitHub Dark.",
+  "theme": "Dark",
+  "codeTheme": "github-dark",
+  "zoom": 100,
+  "readingWidth": 900,
+  "showLineNumbers": true,
+  "showToc": true
+}

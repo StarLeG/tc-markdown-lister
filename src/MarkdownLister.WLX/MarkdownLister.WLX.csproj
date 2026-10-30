@@ -1,0 +1,114 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>MarkdownLister.WLX</AssemblyName>
+    <RootNamespace>MarkdownLister.WLX</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+    <!-- Для DllExport-проходки PDB не нужны -->
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <!-- Платформа задаётся снаружи: /p:PlatformTarget=x86|x64 (build.ps1)
+       либо через Platform=x86|x64 из MarkdownLister.sln (Visual Studio).
+       По умолчанию — x64. -->
+  <PropertyGroup Condition="'$(PlatformTarget)'=='' And '$(Platform)'=='x86'">
+    <PlatformTarget>x86</PlatformTarget>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(PlatformTarget)'==''">
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
+    <!-- GeneratePathProperty даёт $(PkgDllExport) для ссылки на raw-lib и импорта targets -->
+    <PackageReference Include="DllExport" Version="1.8.1" GeneratePathProperty="true" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- GlobalPropertiesToRemove: PlatformTarget не должен наследоваться в Core (всегда AnyCPU) -->
+    <ProjectReference Include="..\MarkdownLister.Core\MarkdownLister.Core.csproj" GlobalPropertiesToRemove="PlatformTarget" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Справочная библиотека атрибута [DllExport] (v1.8.1).
+      Пространство имён атрибута обфусцировано производителем и фиксировано в пакете.
+    -->
+    <Reference Include="DllExport">
+      <HintPath>$(PkgDllExport)\tools\raw\lib\net20\DllExport.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Web.Extensions" />
+  </ItemGroup>
+
+  <!-- Веб-ресурсы (шаблон, стили, скрипты, вендорные библиотеки) -> выходной каталог web\ -->
+  <ItemGroup>
+    <Content Include="..\MarkdownLister.Web\template.html">
+      <Link>web\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\MarkdownLister.Web\css\**\*">
+      <Link>web\css\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\MarkdownLister.Web\js\**\*">
+      <Link>web\js\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\MarkdownLister.Web\vendor\**\*">
+      <Link>web\vendor\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- JSON-пресеты тем -> выходной каталог themes\ рядом с плагином -->
+    <Content Include="..\..\themes\**\*.json">
+      <Link>themes\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <!--
+    DllExport (3F, v1.8.1): после сборки ILAsm-проходка добавляет неуправляемый
+    экспорт WLX-функций. Атрибут ищется по имени "$(DllExportNamespace).DllExportAttribute",
+    MetaLib — исходная raw-библиотека из пакета; ilasm/ildasm берём из tools\iltools (обёртка).
+  -->
+  <PropertyGroup>
+    <DllExportNamespace>D3F00FF1770DED978EC774BA389F2DC901F4.B00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.C00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.D00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.E00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.F00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000</DllExportNamespace>
+    <DllExportMetaLibFullPath>$(PkgDllExport)\tools\raw\lib\net20\DllExport.dll</DllExportMetaLibFullPath>
+    <DllExportOurILAsm>true</DllExportOurILAsm>
+    <!-- Путь поиска для ilasm/ildasm: tools\iltools (ilasm.exe + ildasm.exe-обёртка) -->
+    <DllExportOurILAsmPath>$(MSBuildThisFileDirectory)..\..\tools\iltools\</DllExportOurILAsmPath>
+    <!-- Путь поиска metalib DllExport.dll -->
+    <DllExportILAsmCustomPath>$(PkgDllExport)\tools\raw\lib\net20</DllExportILAsmCustomPath>
+  </PropertyGroup>
+  <Import Project="$(PkgDllExport)\tools\net.r_eg.DllExport.targets"
+          Condition="'$(PkgDllExport)' != '' And Exists('$(PkgDllExport)\tools\net.r_eg.DllExport.targets')" />
+
+  <!--
+    Генерация tools\iltools: ilasm.exe и ildasm.orig.exe — из пакета DllExport (3F/coreclr),
+    ildasm.exe — обёртка (tools\ildasmwrap\Program.cs), обходящая баг ildasm: тела P/Invoke
+    без «// end of method ...» + рассинхрон BOM/кодировки выходного IL.
+    См. tools\ildasmwrap\Program.cs — там подробное описание бага.
+  -->
+  <Target Name="MarkdownListerPrepareIlTools" BeforeTargets="DllExportMod">
+    <PropertyGroup>
+      <IlToolsDir>$(MSBuildThisFileDirectory)..\..\tools\iltools\</IlToolsDir>
+      <IlWrapSrc>$(MSBuildThisFileDirectory)..\..\tools\ildasmwrap\Program.cs</IlWrapSrc>
+    </PropertyGroup>
+    <MakeDir Directories="$(IlToolsDir)" />
+    <Copy SourceFiles="$(PkgDllExport)\tools\coreclr\ilasm.exe"
+          DestinationFiles="$(IlToolsDir)ilasm.exe" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(PkgDllExport)\tools\coreclr\ildasm.exe"
+          DestinationFiles="$(IlToolsDir)ildasm.orig.exe" SkipUnchangedFiles="true" />
+    <Csc Sources="$(IlWrapSrc)"
+         OutputAssembly="$(IlToolsDir)ildasm.exe"
+         TargetType="exe"
+         Optimize="true"
+         References="@(ReferencePath)" />
+  </Target>
+
+</Project>

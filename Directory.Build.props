@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <!-- Версия проекта (SemVer) — единственное место, не хардкодить в коде -->
+    <Version>0.1.0</Version>
+    <Company>Старинский Олег Григорьевич</Company>
+    <Product>MarkdownLister</Product>
+    <Copyright>Copyright © 2026 Старинский Олег Григорьевич</Copyright>
+    <ProductDescription>WLX-плагин для Total Commander: просмотр Markdown-файлов</ProductDescription>
+    <Authors>Старинский Олег Григорьевич</Authors>
+    <LangVersion>latest</LangVersion>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+</Project>

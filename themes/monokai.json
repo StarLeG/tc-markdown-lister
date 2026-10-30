@@ -1,0 +1,10 @@
+{
+  "name": "Monokai",
+  "description": "Тёмная тема Monokai для кода, оформление документа тёмное.",
+  "theme": "Dark",
+  "codeTheme": "monokai",
+  "zoom": 100,
+  "readingWidth": 900,
+  "showLineNumbers": true,
+  "showToc": true
+}
