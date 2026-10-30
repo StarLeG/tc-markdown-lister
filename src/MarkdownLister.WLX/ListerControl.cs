@@ -50,7 +50,7 @@ namespace MarkdownLister.WLX
         /// <param name="settings">Настройки плагина.</param>
         public ListerControl(PluginSettings settings)
         {
-            _settings = settings ?? new PluginSettings(typeof(ListerControl).Assembly.Location);
+            _settings = settings ?? new PluginSettings(Path.Combine(Bootstrap.PluginDir, "MarkdownLister.WLX.dll"));
 
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
             BackColor = SystemColors.Window;

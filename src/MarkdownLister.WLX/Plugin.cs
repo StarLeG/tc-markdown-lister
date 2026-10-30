@@ -43,34 +43,18 @@ namespace MarkdownLister.WLX
         {
             try
             {
-                PluginDir = Path.GetDirectoryName(typeof(Plugin).Assembly.Location)
-                            ?? AppDomain.CurrentDomain.BaseDirectory;
+                // Резолв зависимостей и папка плагина — см. Bootstrap (module initializer):
+                // AssemblyResolve должен быть подключён ДО JIT-резолва MarkdownLister.Core.
+                PluginDir = Bootstrap.PluginDir;
 
-                // Зависимости (Core, Markdig, WebView2…) лежат рядом с .wlx;
-                // стандартный поиск CLR их оттуда не находит — резолвим вручную.
-                AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;
-
-                Settings = new PluginSettings(typeof(Plugin).Assembly.Location);
+                Settings = new PluginSettings(Path.Combine(PluginDir, "MarkdownLister.WLX.dll"));
                 Logger.Init(PluginDir, Settings.LogErrors);
                 Logger.Info("MarkdownLister инициализирован; папка: " + PluginDir);
             }
-            catch
+            catch (Exception ex)
             {
                 // Статический конструктор не должен ронять Lister.
-            }
-        }
-
-        private static Assembly OnAssemblyResolve(object sender, ResolveEventArgs args)
-        {
-            try
-            {
-                string name = new AssemblyName(args.Name).Name + ".dll";
-                string path = Path.Combine(PluginDir ?? ".", name);
-                return File.Exists(path) ? Assembly.LoadFrom(path) : null;
-            }
-            catch
-            {
-                return null;
+                Logger.Error("Plugin..cctor", ex);
             }
         }
 
@@ -98,6 +82,18 @@ namespace MarkdownLister.WLX
         [DllExport("ListLoad", CallingConvention.StdCall)]
         public static IntPtr ListLoad(IntPtr parentWin,
             [MarshalAs(UnmanagedType.LPStr)] string fileToLoad, int showFlags)
+        {
+            // Реализация — в ListLoadCore: DllExport дописывает modopt(CallConvStdcall)
+            // к сигнатурам экспортируемых методов, поэтому прямой вызов ListLoad из
+            // ListLoadW не резолвится (MissingMethodException и падение Total Commander).
+            return ListLoadCore(parentWin, fileToLoad);
+        }
+
+        /// <summary>Общая реализация ListLoad/ListLoadW (без атрибута экспорта).</summary>
+        /// <param name="parentWin">Родительское окно Lister.</param>
+        /// <param name="fileToLoad">Путь к файлу.</param>
+        /// <returns>HWND окна плагина или NULL при отказе.</returns>
+        private static IntPtr ListLoadCore(IntPtr parentWin, string fileToLoad)
         {
             try
             {
@@ -149,7 +145,7 @@ namespace MarkdownLister.WLX
         public static IntPtr ListLoadW(IntPtr parentWin,
             [MarshalAs(UnmanagedType.LPWStr)] string fileToLoad, int showFlags)
         {
-            return ListLoad(parentWin, fileToLoad, showFlags);
+            return ListLoadCore(parentWin, fileToLoad);
         }
 
         /// <summary>Показывает следующий/предыдущий файл в том же окне.</summary>

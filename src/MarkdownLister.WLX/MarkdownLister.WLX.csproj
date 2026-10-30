@@ -7,6 +7,8 @@
     <RootNamespace>MarkdownLister.WLX</RootNamespace>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
+    <!-- C# 9: [ModuleInitializer] в Bootstrap (ранний AssemblyResolve) -->
+    <LangVersion>latest</LangVersion>
     <!-- Для DllExport-проходки PDB не нужны -->
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
