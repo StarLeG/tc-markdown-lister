@@ -101,8 +101,18 @@ if ($IniPath) {
     $ini = $IniPath
 }
 else {
-    $loc = (Get-ItemProperty 'HKCU:\Software\Ghisler\Total Commander' -Name IniLocation -ErrorAction SilentlyContinue).IniLocation
-    $ini = if ($loc -and (Test-Path $loc)) { $loc } else { Join-Path $tcDir 'wincmd.ini' }
+    # Порядок поиска как у Total Commander: COMMANDER_INI (задаётся самим TC),
+    # реестр, папка программы, профиль пользователя, %WINDIR%.
+    $ini = $null
+    foreach ($c in @(
+            $env:COMMANDER_INI
+            (Get-ItemProperty 'HKCU:\Software\Ghisler\Total Commander' -Name IniLocation -ErrorAction SilentlyContinue).IniLocation
+            (Join-Path $tcDir 'wincmd.ini')
+            (Join-Path $env:APPDATA 'Ghisler\wincmd.ini')
+            (Join-Path $env:WINDIR 'wincmd.ini'))) {
+        if ($c -and (Test-Path $c)) { $ini = $c; break }
+    }
+    if (-not $ini) { throw 'wincmd.ini не найден. Укажите путь: -IniPath "C:\totalcmd\wincmd.ini"' }
 }
 Unregister-Plugin -Ini $ini
 

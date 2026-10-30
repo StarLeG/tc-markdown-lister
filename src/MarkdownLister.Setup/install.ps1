@@ -51,10 +51,18 @@ function Find-WincmdIni {
         if (-not (Test-Path $IniPath)) { throw "INI-файл не найден: $IniPath" }
         return $IniPath
     }
-    $loc = (Get-ItemProperty 'HKCU:\Software\Ghisler\Total Commander' -Name IniLocation -ErrorAction SilentlyContinue).IniLocation
-    if ($loc -and (Test-Path $loc)) { return $loc }
-    $default = Join-Path $TcDir 'wincmd.ini'
-    if (Test-Path $default) { return $default }
+    # TC ищет wincmd.ini в таком же порядке; COMMANDER_INI задаётся им же
+    # для дочерних процессов — самый надёжный источник.
+    $candidates = @(
+        $env:COMMANDER_INI
+        (Get-ItemProperty 'HKCU:\Software\Ghisler\Total Commander' -Name IniLocation -ErrorAction SilentlyContinue).IniLocation
+        (Join-Path $TcDir 'wincmd.ini')
+        (Join-Path $env:APPDATA 'Ghisler\wincmd.ini')
+        (Join-Path $env:WINDIR 'wincmd.ini')
+    )
+    foreach ($c in $candidates) {
+        if ($c -and (Test-Path $c)) { return $c }
+    }
     throw 'wincmd.ini не найден. Укажите путь: -IniPath "C:\totalcmd\wincmd.ini"'
 }
 
