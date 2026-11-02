@@ -74,7 +74,8 @@ jobs:
         run: |
           $tag = '${{ github.ref_name }}'
           $ver = $tag.Substring(1)
-          $lines = Get-Content CHANGELOG.md
+          # -Encoding utf8 required: PS 5.1 reads UTF-8 as ANSI otherwise (mojibake)
+          $lines = Get-Content CHANGELOG.md -Encoding utf8
           $start = -1
           for ($i = 0; $i -lt $lines.Count; $i++) {
             if ($lines[$i] -match ('^## \[' + [regex]::Escape($ver) + '\]')) {
@@ -96,5 +97,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = '${{ github.ref_name }}'
+          $ver = $tag.Substring(1)
           $zip = (Get-Item dist\MarkdownLister-*.zip).FullName
-          gh release create $tag $zip --title "MarkdownLister $tag" --notes-file notes.md
+          gh release create $tag $zip --title "MarkdownLister $ver" --notes-file notes.md
