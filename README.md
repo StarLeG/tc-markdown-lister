@@ -1,5 +1,7 @@
 # MarkdownLister
 
+[English](README.en.md) | **Русский**
+
 <p align="center">
   <b>Markdown-просмотрщик для Total Commander</b><br>
   <sub>WLX-плагин: рендеринг в стиле GitHub, split view, Mermaid, KaTeX — прямо в Lister</sub>
