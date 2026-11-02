@@ -54,7 +54,7 @@ namespace MarkdownLister.Core
                 if (inFence)
                     continue;
 
-                if (line.Length > 1 && line[0] == '#' && line[1] == ' ')
+                if (line.Length > 0 && line[0] == '#')
                 {
                     int level = 0;
                     while (level < line.Length && line[level] == '#')

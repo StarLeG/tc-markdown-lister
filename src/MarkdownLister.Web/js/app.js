@@ -455,11 +455,23 @@
 
   // ---------- Mermaid ----------
   function renderMermaid() {
-    const blocks = content.querySelectorAll('code.mermaid-src');
+    // Markdig (UseAdvancedExtensions -> Diagrams) оборачивает ```mermaid в <div class="mermaid">;
+    // поддерживаем и классический вариант <pre><code class="language-mermaid"> (mermaid-src).
+    content.querySelectorAll('code.mermaid-src, code.language-mermaid').forEach((code) => {
+      const pre = code.parentElement;
+      const div = document.createElement('div');
+      div.className = 'mermaid';
+      div.textContent = code.textContent;
+      pre.replaceWith(div);
+    });
+
+    const blocks = content.querySelectorAll('.mermaid');
     if (!blocks.length) return;
 
     if (!window.mermaid) {
-      blocks.forEach((b) => b.classList.remove('mermaid-src'));
+      blocks.forEach((b) => {
+        b.textContent = 'Диаграмма Mermaid не отрисована: библиотека mermaid не загрузилась.';
+      });
       return;
     }
 
@@ -469,16 +481,18 @@
       securityLevel: 'strict',
     });
 
-    blocks.forEach((code, i) => {
-      const pre = code.parentElement;
-      const div = document.createElement('div');
-      div.className = 'mermaid';
-      div.textContent = code.textContent;
-      pre.replaceWith(div);
-    });
-
     try {
-      mermaid.run({ nodes: content.querySelectorAll('.mermaid') });
+      const runResult = mermaid.run({ nodes: blocks });
+      if (runResult && typeof runResult.catch === 'function') {
+        runResult.catch((e) => {
+          console.error('Mermaid:', e);
+          blocks.forEach((b) => {
+            if (!b.querySelector('svg')) {
+              b.textContent = 'Ошибка диаграммы Mermaid: ' + (e && e.message ? e.message : String(e));
+            }
+          });
+        });
+      }
     } catch (e) {
       console.error('Mermaid:', e);
     }
