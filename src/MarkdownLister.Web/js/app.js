@@ -42,7 +42,7 @@
   function handleHostMessage(msg) {
     switch (msg.type) {
       case 'load':
-        renderDocument(msg.html, msg.source, msg.headings, msg.settings, msg.stats);
+        renderDocument(msg.html, msg.source, msg.headings, msg.settings, msg.stats, msg.imageBase);
         break;
       case 'settings':
         applySettings(msg.settings);
@@ -78,7 +78,7 @@
   }
 
   // ---------- Рендеринг документа ----------
-  function renderDocument(html, source, headings, settings, stats) {
+  function renderDocument(html, source, headings, settings, stats, imageBase) {
     state.html = html || '';
     state.source = source || '';
     state.headings = headings || [];
@@ -95,6 +95,10 @@
       content.innerHTML = state.html;
     }
 
+    // Локальные картинки документа: относительные пути раздаются
+    // виртуальным хостом media.markdownlister (папка документа)
+    rewriteImageUrls(imageBase);
+
     sourceText.textContent = state.source;
     applySettings(state.settings);
     buildToc();
@@ -104,6 +108,19 @@
     updateStats(stats);
     contentScroll.scrollTop = 0;
     clearSearch();
+  }
+
+  // Переписывает относительные пути картинок на виртуальный хост папки
+  // документа (imageBase). Абсолютные URL, data: и якоря не трогаем.
+  function rewriteImageUrls(imageBase) {
+    if (!imageBase) return;
+    content.querySelectorAll('img').forEach((img) => {
+      const src = img.getAttribute('src') || '';
+      if (!src || /^(https?:|data:|blob:|\/\/|#)/i.test(src)) return;
+      // Абсолютные пути файловой системы не отдаются через хост папки документа
+      if (/^([a-z]:)?[/\\]/i.test(src)) return;
+      img.src = imageBase + encodeURI(src.replace(/\\/g, '/'));
+    });
   }
 
   // ---------- Настройки / темы / зум ----------

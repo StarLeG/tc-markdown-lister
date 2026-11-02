@@ -28,6 +28,9 @@ namespace MarkdownLister.WLX
 
         private const string VirtualHost = "app.markdownlister";
 
+        /// <summary>Виртуальный хост для локальных картинок документа (папка документа).</summary>
+        private const string MediaHost = "media.markdownlister";
+
         private readonly PluginSettings _settings;
         private readonly MarkdownRenderer _renderer = new MarkdownRenderer();
 
@@ -37,6 +40,12 @@ namespace MarkdownLister.WLX
 
         private string _currentFile;
         private bool _ready;
+
+        /// <summary>Папка, уже разданная через MediaHost (для отслеживания смены маппинга).</summary>
+        private string _mappedDir;
+
+        /// <summary>Страница template.html уже загружена (навигация выполнена).</summary>
+        private bool _pageNavigated;
 
         private string _pendingHtml;
         private string _pendingSource;
@@ -106,7 +115,12 @@ namespace MarkdownLister.WLX
                 core.ContextMenuRequested += OnContextMenuRequested;
                 core.WebMessageReceived += OnWebMessageReceived;
 
+                // Маппинг папки документа должен существовать ДО загрузки страницы:
+                // смена маппинга не применяется к уже загруженной странице (WebView2)
+                MapDocumentMedia(_currentFile);
+
                 core.Navigate($"https://{VirtualHost}/template.html");
+                _pageNavigated = true;
             }
             catch (Exception ex)
             {
@@ -165,6 +179,7 @@ namespace MarkdownLister.WLX
                 string text = EncodingDetector.Decode(bytes, out _);
 
                 _currentFile = path;
+                MapDocumentMedia(path); // до загрузки страницы — без перезагрузки
                 _pendingSource = text;
                 _pendingHtml = _renderer.ToHtml(text);
                 _pendingHeadings = _renderer.ExtractHeadings(text);
@@ -184,6 +199,16 @@ namespace MarkdownLister.WLX
             if (!_ready || _pendingHtml == null)
                 return;
 
+            // Папка документа → виртуальный хост: относительные картинки
+            // (docs/images/...) должны загружаться оттуда, а не из web\ плагина.
+            // Смена маппинга не действует на уже загруженную страницу (WebView2) —
+            // в этом случае перезагружаем её; документ придёт после 'ready'.
+            if (MapDocumentMedia(_currentFile) && _pageNavigated)
+            {
+                _webView.CoreWebView2.Reload();
+                return;
+            }
+
             var msg = new Dictionary<string, object>
             {
                 ["type"] = "load",
@@ -192,8 +217,42 @@ namespace MarkdownLister.WLX
                 ["headings"] = HeadingsToDto(_pendingHeadings),
                 ["settings"] = SettingsToDto(),
                 ["stats"] = StatsToDto(_pendingStats),
+                ["imageBase"] = "https://" + MediaHost + "/",
             };
             Send(msg);
+        }
+
+        /// <summary>Раздаёт папку документа через виртуальный хост для локальных картинок.</summary>
+        /// <param name="docPath">Путь к просматриваемому файлу.</param>
+        /// <returns>true — маппинг был установлен/изменён сейчас.</returns>
+        private bool MapDocumentMedia(string docPath)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(docPath))
+                    return false;
+
+                string dir = Path.GetDirectoryName(Path.GetFullPath(docPath));
+                if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
+                    return false;
+                if (string.Equals(dir, _mappedDir, StringComparison.OrdinalIgnoreCase))
+                    return false;
+
+                CoreWebView2 core = _webView?.CoreWebView2;
+                if (core == null)
+                    return false;
+
+                core.SetVirtualHostNameToFolderMapping(MediaHost, dir,
+                    CoreWebView2HostResourceAccessKind.Allow);
+                _mappedDir = dir;
+                Logger.Info("MapDocumentMedia: " + MediaHost + " -> " + dir);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("MapDocumentMedia", ex);
+                return false;
+            }
         }
 
         private List<Dictionary<string, object>> HeadingsToDto(List<Heading> headings)
