@@ -298,6 +298,12 @@ namespace MarkdownLister.WLX
                     case "export-pdf":
                         ExportPdf();
                         break;
+
+                    case "context-menu":
+                        // Правый клик / Shift+F10 перехвачен в app.js — событие
+                        // ContextMenuRequested в WebView2 не всегда доходит до хоста
+                        ShowPluginMenu();
+                        break;
                 }
             }
             catch (Exception ex)
@@ -584,12 +590,28 @@ namespace MarkdownLister.WLX
             try
             {
                 e.Handled = true; // штатное меню отключено — показываем своё
+                Logger.Info("ContextMenuRequested fired"); // диагностика: доходит ли событие
+                ShowPluginMenu();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("ContextMenu", ex);
+            }
+        }
+
+        /// <summary>Показывает контекстное меню плагина в позиции курсора.</summary>
+        private void ShowPluginMenu()
+        {
+            try
+            {
+                if (_menu == null)
+                    return;
                 UpdateMenuState();
                 _menu.Show(Cursor.Position);
             }
             catch (Exception ex)
             {
-                Logger.Error("ContextMenu", ex);
+                Logger.Error("ShowPluginMenu", ex);
             }
         }
 

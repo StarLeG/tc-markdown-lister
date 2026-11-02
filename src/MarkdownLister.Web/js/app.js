@@ -530,6 +530,10 @@
     } else if (ctrl && e.key === 'p') {
       e.preventDefault();
       post({ type: 'print' });
+    } else if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+      // Клавиша контекстного меню / Shift+F10 — показываем меню плагина
+      e.preventDefault();
+      post({ type: 'context-menu' });
     } else if (e.key === 'F3') {
       e.preventDefault();
       gotoHit(e.shiftKey ? -1 : 1);
@@ -570,6 +574,13 @@
       e.preventDefault();
       post({ type: 'open-external', href: href });
     }
+  });
+
+  // Контекстное меню плагина по правому клику.
+  // Событие contextmenu в странице надёжнее, чем ContextMenuRequested в C#-хосте.
+  document.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    post({ type: 'context-menu' });
   });
 
   // Уведомляем хост о готовности
