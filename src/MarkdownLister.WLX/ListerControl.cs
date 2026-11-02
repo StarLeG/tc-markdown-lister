@@ -573,6 +573,7 @@ namespace MarkdownLister.WLX
             _menu.Items.Add("Печать…\tCtrl+P", null, (s, e) => ShowPrint());
             _menu.Items.Add("Экспорт в PDF…", null, (s, e) => ExportPdf());
             _menu.Items.Add(new ToolStripSeparator());
+            _menu.Items.Add("Поддержать проект…", null, (s, e) => ShowDonate());
             _menu.Items.Add("О плагине…", null, (s, e) => ShowAbout());
 
             UpdateMenuState();
@@ -679,6 +680,7 @@ namespace MarkdownLister.WLX
                     "Автор: Старинский Олег Григорьевич\n" +
                     "Email: info@electroman.by\n" +
                     "Telegram: @ElectroManBY\n\n" +
+                    "Поддержать проект: контекстное меню → «Поддержать проект…»\n\n" +
                     "Лицензия: MIT\n" +
                     "https://github.com/StarLeG/tc-markdown-lister";
 
@@ -688,6 +690,20 @@ namespace MarkdownLister.WLX
             catch (Exception ex)
             {
                 Logger.Error("ShowAbout", ex);
+            }
+        }
+
+        /// <summary>Показывает диалог «Поддержать проект» с реквизитами доната.</summary>
+        private void ShowDonate()
+        {
+            try
+            {
+                using (var dlg = new DonateDialog())
+                    dlg.ShowDialog(this);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("ShowDonate", ex);
             }
         }
 
