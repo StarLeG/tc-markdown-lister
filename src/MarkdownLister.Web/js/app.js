@@ -453,9 +453,42 @@
     });
   }
 
+  // ---------- Ленивая загрузка библиотек ----------
+  // KaTeX (~275 КБ) и Mermaid (~3 МБ) не грузятся при старте страницы:
+  // подключаются только если в документе есть формулы или диаграммы.
+  const loadedScripts = {};
+  function loadScript(src) {
+    if (loadedScripts[src]) return loadedScripts[src];
+    loadedScripts[src] = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error('Не удалось загрузить ' + src));
+      document.body.appendChild(s);
+    });
+    return loadedScripts[src];
+  }
+
+  // Есть ли в исходнике математические конструкции ($…$, $$…$$, \(…\), \[…\])
+  function hasMath(text) {
+    return /\$\$|\\\(|\\\[/.test(text) || /\$[^$\n$]+\$/m.test(text);
+  }
+
   // ---------- KaTeX ----------
   function renderMath() {
+    if (!hasMath(state.source)) return;   // формул нет — библиотека не нужна
     if (window.renderMathInElement) {
+      applyMath();
+      return;
+    }
+    // KaTeX: katex.min.js, затем auto-render.min.js (зависит от katex)
+    loadScript('vendor/katex/katex.min.js')
+      .then(() => loadScript('vendor/katex/contrib/auto-render.min.js'))
+      .then(applyMath)
+      .catch((e) => { console.error('KaTeX:', e); });
+
+    function applyMath() {
+      if (!window.renderMathInElement) return;
       try {
         renderMathInElement(content, {
           delimiters: [
@@ -483,14 +516,25 @@
     });
 
     const blocks = content.querySelectorAll('.mermaid');
-    if (!blocks.length) return;
+    if (!blocks.length) return;   // диаграмм нет — mermaid.min.js (~3 МБ) не грузим
 
     if (!window.mermaid) {
-      blocks.forEach((b) => {
-        b.textContent = 'Диаграмма Mermaid не отрисована: библиотека mermaid не загрузилась.';
-      });
+      // Ленивая загрузка: mermaid тяжёлый, грузим только при наличии диаграмм
+      loadScript('vendor/mermaid/mermaid.min.js')
+        .then(() => renderMermaidBlocks(blocks))
+        .catch((e) => {
+          console.error('Mermaid:', e);
+          blocks.forEach((b) => {
+            b.textContent = 'Диаграмма Mermaid не отрисована: библиотека mermaid не загрузилась.';
+          });
+        });
       return;
     }
+    renderMermaidBlocks(blocks);
+  }
+
+  function renderMermaidBlocks(blocks) {
+    if (!window.mermaid) return;
 
     mermaid.initialize({
       startOnLoad: false,
