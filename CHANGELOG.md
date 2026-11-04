@@ -5,6 +5,17 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-04
+
+### Добавлено
+
+- Английский язык интерфейса с переключением в контекстном меню
+  («Язык / Language»: Авто / Русский / English) — меню, диалоги, статус-строка,
+  поиск и сообщения об ошибках. Настройка сохраняется в `MarkdownLister.ini`;
+  режим «Авто» следует языку ОС.
+- Escape закрывает окно просмотра (Lister) — как и в самом Total Commander.
+  В Quick View (Ctrl+Q) Escape ничего не закрывает, чтобы не уронить окно TC.
+
 ## [0.2.1] - 2026-11-04
 
 ### Исправлено
@@ -59,6 +70,7 @@ GitHub по **F3** и в Quick View (Ctrl+Q).
 - Настройки в `MarkdownLister.WLX.ini` рядом с плагином; без телеметрии
   и сетевых запросов.
 
+[0.3.0]: https://github.com/StarLeG/tc-markdown-lister/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/StarLeG/tc-markdown-lister/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/StarLeG/tc-markdown-lister/compare/v0.1.4...v0.2.0
 [0.1.4]: https://github.com/StarLeG/tc-markdown-lister/releases/tag/v0.1.4
