@@ -363,6 +363,11 @@ namespace MarkdownLister.WLX
                         // ContextMenuRequested в WebView2 не всегда доходит до хоста
                         ShowPluginMenu();
                         break;
+
+                    case "menu-dismiss":
+                        // Клик / Escape / прокрутка в странице — закрыть меню
+                        ClosePluginMenu();
+                        break;
                 }
             }
             catch (Exception ex)
@@ -641,7 +646,15 @@ namespace MarkdownLister.WLX
             _menu.Items.Add("Поддержать проект…", null, (s, e) => ShowDonate());
             _menu.Items.Add("О плагине…", null, (s, e) => ShowAbout());
 
+            _menu.Closed += OnMenuClosed;
+
             UpdateMenuState();
+        }
+
+        private void OnMenuClosed(object sender, ToolStripDropDownClosedEventArgs e)
+        {
+            // Страница должна знать, что меню закрыто: она перестаёт «гасить» клики
+            Send(new Dictionary<string, object> { ["type"] = "menu-closed" });
         }
 
         private void OnContextMenuRequested(object sender, CoreWebView2ContextMenuRequestedEventArgs e)
@@ -667,10 +680,25 @@ namespace MarkdownLister.WLX
                     return;
                 UpdateMenuState();
                 _menu.Show(Cursor.Position);
+                Send(new Dictionary<string, object> { ["type"] = "menu-opened" });
             }
             catch (Exception ex)
             {
                 Logger.Error("ShowPluginMenu", ex);
+            }
+        }
+
+        /// <summary>Закрывает контекстное меню плагина, если оно показано.</summary>
+        private void ClosePluginMenu()
+        {
+            try
+            {
+                if (_menu != null && _menu.Visible)
+                    _menu.Close(ToolStripDropDownCloseReason.CloseCalled);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("ClosePluginMenu", ex);
             }
         }
 

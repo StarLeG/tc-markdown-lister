@@ -14,6 +14,7 @@
     searchHits: [],
     searchIndex: -1,
     scrollSyncLock: false,
+    menuOpen: false,     // контекстное меню хоста (WinForms) сейчас показано
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -73,6 +74,12 @@
         break;
       case 'error':
         showError(msg.text);
+        break;
+      case 'menu-opened':
+        state.menuOpen = true;
+        break;
+      case 'menu-closed':
+        state.menuOpen = false;
         break;
     }
   }
@@ -643,6 +650,42 @@
     e.preventDefault();
     post({ type: 'context-menu' });
   });
+
+  // Закрытие контекстного меню хоста: клики внутри WebView2 не гасят
+  // WinForms-меню сами (браузер — дочернее окно, активация не переходит),
+  // поэтому закрываем его явно через menu-dismiss. Первый клик «съедается» —
+  // как это делают нативные меню, чтобы случайно не перейти по ссылке.
+  // Клик гасим по таймауту: menu-closed может прийти раньше самого click.
+  let menuSwallowUntil = 0;
+
+  document.addEventListener('pointerdown', (e) => {
+    if (!state.menuOpen) return;
+    post({ type: 'menu-dismiss' });
+    if (e.button === 0 || e.button === 1) {
+      e.preventDefault();
+      e.stopPropagation();
+      menuSwallowUntil = Date.now() + 300;
+    }
+  }, true);
+
+  document.addEventListener('click', (e) => {
+    if (Date.now() >= menuSwallowUntil) return;
+    menuSwallowUntil = 0;
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
+
+  document.addEventListener('keydown', (e) => {
+    if (state.menuOpen && e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      post({ type: 'menu-dismiss' });
+    }
+  }, true);
+
+  document.addEventListener('wheel', () => {
+    if (state.menuOpen) post({ type: 'menu-dismiss' });
+  }, { capture: true, passive: true });
 
   // Уведомляем хост о готовности
   post({ type: 'ready' });
