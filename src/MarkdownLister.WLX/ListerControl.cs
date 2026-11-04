@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Text;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
@@ -53,6 +54,7 @@ namespace MarkdownLister.WLX
         private DocumentStats _pendingStats;
 
         private ToolStripMenuItem _themeSystem, _themeLight, _themeDark;
+        private ToolStripMenuItem _langAuto, _langRu, _langEn;
         private ToolStripMenuItem _tocItem, _splitItem, _lineNumbersItem;
 
         /// <summary>Создаёт контрол с заданными настройками.</summary>
@@ -64,6 +66,7 @@ namespace MarkdownLister.WLX
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
             BackColor = SystemColors.Window;
 
+            Loc.SetLanguage(_settings.Language);
             BuildContextMenu();
             CreateWebView();
         }
@@ -125,11 +128,7 @@ namespace MarkdownLister.WLX
             catch (Exception ex)
             {
                 Logger.Error("InitWebView", ex);
-                ShowFallback(
-                    "Не удалось инициализировать WebView2.\n\n" +
-                    "Вероятно, на компьютере отсутствует Microsoft Edge WebView2 Runtime.\n" +
-                    "Скачайте его: https://developer.microsoft.com/microsoft-edge/webview2/\n\n" +
-                    "Подробности: " + ex.Message);
+                ShowFallback(Loc.T("Err.WebView2", ex.Message));
             }
         }
 
@@ -171,7 +170,7 @@ namespace MarkdownLister.WLX
             {
                 if (string.IsNullOrEmpty(path) || !File.Exists(path))
                 {
-                    SendError("Файл не найден: " + path);
+                    SendError(Loc.T("Err.FileNotFound") + path);
                     return;
                 }
 
@@ -190,7 +189,7 @@ namespace MarkdownLister.WLX
             catch (Exception ex)
             {
                 Logger.Error("LoadFile", ex);
-                SendError("Ошибка загрузки файла: " + ex.Message);
+                SendError(Loc.T("Err.LoadFile") + ex.Message);
             }
         }
 
@@ -276,6 +275,7 @@ namespace MarkdownLister.WLX
         {
             return new Dictionary<string, object>
             {
+                ["language"] = Loc.Lang,
                 ["theme"] = _settings.Theme,
                 ["codeTheme"] = _settings.CodeTheme,
                 ["zoom"] = _settings.Zoom,
@@ -367,6 +367,11 @@ namespace MarkdownLister.WLX
                     case "menu-dismiss":
                         // Клик / Escape / прокрутка в странице — закрыть меню
                         ClosePluginMenu();
+                        break;
+
+                    case "close":
+                        // Escape в документе — закрыть окно просмотра (Lister)
+                        CloseViewer();
                         break;
                 }
             }
@@ -464,12 +469,12 @@ namespace MarkdownLister.WLX
                 if (File.Exists(newPath))
                     LoadFile(newPath);
                 else
-                    SendError("Файл не найден: " + newPath);
+                    SendError(Loc.T("Err.FileNotFound") + newPath);
             }
             catch (Exception ex)
             {
                 Logger.Error("NavigateRelative", ex);
-                SendError("Ошибка перехода по ссылке: " + ex.Message);
+                SendError(Loc.T("Err.Navigate") + ex.Message);
             }
         }
 
@@ -529,6 +534,8 @@ namespace MarkdownLister.WLX
             try
             {
                 _settings.Load();
+                Loc.SetLanguage(_settings.Language);
+                RebuildMenu();
                 Send(new Dictionary<string, object>
                 {
                     ["type"] = "settings",
@@ -552,7 +559,7 @@ namespace MarkdownLister.WLX
             catch (Exception ex)
             {
                 Logger.Error("ShowPrint", ex);
-                SendError("Не удалось открыть диалог печати: " + ex.Message);
+                SendError(Loc.T("Err.Print") + ex.Message);
             }
         }
 
@@ -579,22 +586,22 @@ namespace MarkdownLister.WLX
 
                 using (var dlg = new SaveFileDialog())
                 {
-                    dlg.Title = "Экспорт в PDF";
-                    dlg.Filter = "Документ PDF (*.pdf)|*.pdf";
+                    dlg.Title = Loc.T("Pdf.Title");
+                    dlg.Filter = Loc.T("Pdf.Filter");
                     dlg.FileName = (Path.GetFileNameWithoutExtension(_currentFile ?? "document") ?? "document") + ".pdf";
                     if (dlg.ShowDialog(this) != DialogResult.OK)
                         return;
 
                     bool ok = await core.PrintToPdfAsync(dlg.FileName, null);
                     if (!ok)
-                        MessageBox.Show(this, "Не удалось экспортировать PDF.",
+                        MessageBox.Show(this, Loc.T("Err.PdfFailed"),
                             "MarkdownLister", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
             }
             catch (Exception ex)
             {
                 Logger.Error("ExportPdf", ex);
-                MessageBox.Show(this, "Ошибка экспорта PDF: " + ex.Message,
+                MessageBox.Show(this, Loc.T("Err.Pdf") + ex.Message,
                     "MarkdownLister", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -607,44 +614,54 @@ namespace MarkdownLister.WLX
         {
             _menu = new ContextMenuStrip();
 
-            _menu.Items.Add("Копировать", null, (s, e) => CopySelection());
-            _menu.Items.Add("Выделить всё", null, (s, e) => SelectAll());
+            _menu.Items.Add(Loc.T("Menu.Copy"), null, (s, e) => CopySelection());
+            _menu.Items.Add(Loc.T("Menu.SelectAll"), null, (s, e) => SelectAll());
             _menu.Items.Add(new ToolStripSeparator());
 
-            _menu.Items.Add("Поиск…\tCtrl+F", null, (s, e) => OpenSearch());
-            _tocItem = new ToolStripMenuItem("Оглавление\tCtrl+O", null, (s, e) => ToggleToc());
-            _splitItem = new ToolStripMenuItem("Split view\tCtrl+M", null, (s, e) => ToggleSplit());
+            _menu.Items.Add(Loc.T("Menu.Search"), null, (s, e) => OpenSearch());
+            _tocItem = new ToolStripMenuItem(Loc.T("Menu.Toc"), null, (s, e) => ToggleToc());
+            _splitItem = new ToolStripMenuItem(Loc.T("Menu.Split"), null, (s, e) => ToggleSplit());
             _menu.Items.Add(_tocItem);
             _menu.Items.Add(_splitItem);
             _menu.Items.Add(new ToolStripSeparator());
 
             // Масштаб
-            var zoom = new ToolStripMenuItem("Масштаб");
-            zoom.DropDownItems.Add("Увеличить\tCtrl++", null, (s, e) => ChangeZoom(+10));
-            zoom.DropDownItems.Add("Уменьшить\tCtrl+-", null, (s, e) => ChangeZoom(-10));
-            zoom.DropDownItems.Add("Сбросить\tCtrl+0", null, (s, e) => SetZoom(100));
+            var zoom = new ToolStripMenuItem(Loc.T("Menu.Zoom"));
+            zoom.DropDownItems.Add(Loc.T("Menu.ZoomIn"), null, (s, e) => ChangeZoom(+10));
+            zoom.DropDownItems.Add(Loc.T("Menu.ZoomOut"), null, (s, e) => ChangeZoom(-10));
+            zoom.DropDownItems.Add(Loc.T("Menu.ZoomReset"), null, (s, e) => SetZoom(100));
             _menu.Items.Add(zoom);
 
             // Тема
-            var theme = new ToolStripMenuItem("Тема");
-            _themeSystem = new ToolStripMenuItem("Системная", null, (s, e) => SetTheme("System"));
-            _themeLight = new ToolStripMenuItem("Светлая", null, (s, e) => SetTheme("Light"));
-            _themeDark = new ToolStripMenuItem("Тёмная", null, (s, e) => SetTheme("Dark"));
+            var theme = new ToolStripMenuItem(Loc.T("Menu.Theme"));
+            _themeSystem = new ToolStripMenuItem(Loc.T("Menu.ThemeSystem"), null, (s, e) => SetTheme("System"));
+            _themeLight = new ToolStripMenuItem(Loc.T("Menu.ThemeLight"), null, (s, e) => SetTheme("Light"));
+            _themeDark = new ToolStripMenuItem(Loc.T("Menu.ThemeDark"), null, (s, e) => SetTheme("Dark"));
             theme.DropDownItems.Add(_themeSystem);
             theme.DropDownItems.Add(_themeLight);
             theme.DropDownItems.Add(_themeDark);
             _menu.Items.Add(theme);
 
-            _lineNumbersItem = new ToolStripMenuItem("Номера строк в коде", null,
+            // Язык
+            var lang = new ToolStripMenuItem(Loc.T("Menu.Language"));
+            _langAuto = new ToolStripMenuItem(Loc.T("Menu.LanguageAuto"), null, (s, e) => SetLanguage("Auto"));
+            _langRu = new ToolStripMenuItem(Loc.T("Menu.LanguageRu"), null, (s, e) => SetLanguage("Ru"));
+            _langEn = new ToolStripMenuItem(Loc.T("Menu.LanguageEn"), null, (s, e) => SetLanguage("En"));
+            lang.DropDownItems.Add(_langAuto);
+            lang.DropDownItems.Add(_langRu);
+            lang.DropDownItems.Add(_langEn);
+            _menu.Items.Add(lang);
+
+            _lineNumbersItem = new ToolStripMenuItem(Loc.T("Menu.LineNumbers"), null,
                 (s, e) => ToggleLineNumbers());
             _menu.Items.Add(_lineNumbersItem);
             _menu.Items.Add(new ToolStripSeparator());
 
-            _menu.Items.Add("Печать…\tCtrl+P", null, (s, e) => ShowPrint());
-            _menu.Items.Add("Экспорт в PDF…", null, (s, e) => ExportPdf());
+            _menu.Items.Add(Loc.T("Menu.Print"), null, (s, e) => ShowPrint());
+            _menu.Items.Add(Loc.T("Menu.ExportPdf"), null, (s, e) => ExportPdf());
             _menu.Items.Add(new ToolStripSeparator());
-            _menu.Items.Add("Поддержать проект…", null, (s, e) => ShowDonate());
-            _menu.Items.Add("О плагине…", null, (s, e) => ShowAbout());
+            _menu.Items.Add(Loc.T("Menu.Donate"), null, (s, e) => ShowDonate());
+            _menu.Items.Add(Loc.T("Menu.About"), null, (s, e) => ShowAbout());
 
             _menu.Closed += OnMenuClosed;
 
@@ -702,6 +719,50 @@ namespace MarkdownLister.WLX
             }
         }
 
+        /// <summary>
+        /// Закрывает окно просмотра (Lister) по Escape. В Quick View плагин встроен
+        /// в главное окно Total Commander — там ничего не делаем, чтобы не закрыть TC.
+        /// </summary>
+        private void CloseViewer()
+        {
+            try
+            {
+                // Верхнее окно цепочки родителей (первое без стиля WS_CHILD):
+                // в режиме F3 это окно Lister, в Quick View — главное окно TC.
+                // Имя класса окна Lister не используем: оно зависит от версии TC.
+                IntPtr top = Handle;
+                var chain = new StringBuilder();
+                for (IntPtr hwnd = Handle; hwnd != IntPtr.Zero; hwnd = NativeMethods.GetParent(hwnd))
+                {
+                    var cls = new StringBuilder(256);
+                    NativeMethods.GetClassName(hwnd, cls, cls.Capacity);
+                    if (chain.Length > 0)
+                        chain.Append(" <- ");
+                    chain.Append(cls);
+
+                    if ((NativeMethods.GetWindowLong(hwnd, NativeMethods.GWL_STYLE) & NativeMethods.WS_CHILD) == 0)
+                    {
+                        top = hwnd;
+                        break;
+                    }
+                }
+                Logger.Info("CloseViewer: chain " + chain);
+
+                var topCls = new StringBuilder(256);
+                NativeMethods.GetClassName(top, topCls, topCls.Capacity);
+
+                // Quick View: плагин встроен в главное окно Total Commander — не закрываем
+                if (string.Equals(topCls.ToString(), "TTOTAL_CMD", StringComparison.OrdinalIgnoreCase))
+                    return;
+
+                NativeMethods.PostMessage(top, NativeMethods.WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("CloseViewer", ex);
+            }
+        }
+
         private void UpdateMenuState()
         {
             if (_menu == null)
@@ -715,6 +776,11 @@ namespace MarkdownLister.WLX
             _themeSystem.Checked = theme == "System";
             _themeLight.Checked = theme == "Light";
             _themeDark.Checked = theme == "Dark";
+
+            string lang = _settings.Language ?? "Auto";
+            _langAuto.Checked = lang.Equals("Auto", StringComparison.OrdinalIgnoreCase);
+            _langRu.Checked = lang.Equals("Ru", StringComparison.OrdinalIgnoreCase);
+            _langEn.Checked = lang.Equals("En", StringComparison.OrdinalIgnoreCase);
         }
 
         private void ToggleToc()
@@ -777,23 +843,40 @@ namespace MarkdownLister.WLX
             UpdateMenuState();
         }
 
+        /// <summary>
+        /// Переключает язык интерфейса: сохраняет настройку, перестраивает меню
+        /// и отправляет странице обновлённые настройки (language в SettingsToDto).
+        /// </summary>
+        /// <param name="value">"Auto", "Ru" или "En".</param>
+        private void SetLanguage(string value)
+        {
+            _settings.Language = value;
+            _settings.Save();
+            Loc.SetLanguage(value);
+            RebuildMenu();
+            Send(new Dictionary<string, object>
+            {
+                ["type"] = "settings",
+                ["settings"] = SettingsToDto(),
+            });
+        }
+
+        /// <summary>Перестраивает контекстное меню (после смены языка).</summary>
+        private void RebuildMenu()
+        {
+            var old = _menu;
+            BuildContextMenu();
+            try { old?.Dispose(); } catch { /* старое меню не должно мешать */ }
+        }
+
         private void ShowAbout()
         {
             try
             {
                 Version ver = typeof(ListerControl).Assembly.GetName().Version;
-                string text =
-                    "MarkdownLister — WLX-плагин для Total Commander\n" +
-                    "Удобный просмотр Markdown-файлов\n\n" +
-                    $"Версия: {ver?.ToString(3) ?? "0.1.0"}\n\n" +
-                    "Автор: Старинский Олег Григорьевич\n" +
-                    "Email: info@electroman.by\n" +
-                    "Telegram: @ElectroManBY\n\n" +
-                    "Поддержать проект: контекстное меню → «Поддержать проект…»\n\n" +
-                    "Лицензия: MIT\n" +
-                    "https://github.com/StarLeG/tc-markdown-lister";
+                string text = Loc.T("About.Text", ver?.ToString(3) ?? "0.1.0");
 
-                MessageBox.Show(this, text, "О плагине — MarkdownLister",
+                MessageBox.Show(this, text, Loc.T("About.Title"),
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)

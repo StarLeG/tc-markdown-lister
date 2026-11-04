@@ -19,6 +19,8 @@ namespace MarkdownLister.Core
         /// <summary>Имя JSON-пресета темы из папки themes\ рядом с плагином (без расширения); пусто — без пресета.</summary>
         public string ThemePreset { get; set; } = "";
 
+        /// <summary>Язык интерфейса: Auto (по языку ОС), Ru, En.</summary>
+        public string Language { get; set; } = "Auto";
         /// <summary>Тема оформления: System, Light, Dark.</summary>
         public string Theme { get; set; } = "System";
         /// <summary>Тема подсветки кода (имя CSS-файла Prism/highlight.js).</summary>
@@ -63,6 +65,7 @@ namespace MarkdownLister.Core
             if (!File.Exists(IniPath))
                 return;
 
+            Language = Read("View", "Language", Language);
             Theme = Read("View", "Theme", Theme);
             CodeTheme = Read("View", "CodeTheme", CodeTheme);
             Zoom = Clamp(ReadInt("View", "Zoom", Zoom), 50, 200);
@@ -77,6 +80,7 @@ namespace MarkdownLister.Core
         /// <summary>Сохраняет настройки в INI-файл.</summary>
         public void Save()
         {
+            Write("View", "Language", Language);
             Write("View", "ThemePreset", ThemePreset ?? "");
             Write("View", "Theme", Theme);
             Write("View", "CodeTheme", CodeTheme);

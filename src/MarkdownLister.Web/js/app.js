@@ -15,6 +15,8 @@
     searchIndex: -1,
     scrollSyncLock: false,
     menuOpen: false,     // контекстное меню хоста (WinForms) сейчас показано
+    lang: null,          // язык интерфейса: 'ru' | 'en' (из настроек хоста)
+    stats: null,         // последние значения статус-строки (для смены языка)
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -22,6 +24,53 @@
   const contentScroll = $('#content-scroll');
   const sourceScroll = $('#source-scroll');
   const sourceText = $('#source-text');
+
+  // ---------- Локализация (ru / en) ----------
+  // Строки хоста (меню, диалоги) локализуются в C# (Loc.cs); здесь — строки страницы.
+  const I18N = {
+    ru: {
+      sidebarTitle: 'Оглавление',
+      hideToc: 'Скрыть оглавление (Ctrl+O)',
+      searchPlaceholder: 'Поиск по документу…',
+      searchPrev: 'Предыдущее (Shift+Enter)',
+      searchNext: 'Следующее (Enter)',
+      searchClose: 'Закрыть (Esc)',
+      scrollTop: 'Наверх',
+      words: ['слово', 'слова', 'слов'],
+      headings: ['заголовок', 'заголовка', 'заголовков'],
+      min: 'мин',
+      copy: 'Копировать',
+      copied: 'Скопировано!',
+      mermaidNotLoaded: 'Диаграмма Mermaid не отрисована: библиотека mermaid не загрузилась.',
+      mermaidError: 'Ошибка диаграммы Mermaid: ',
+      errorTitle: 'Ошибка',
+      unknownError: 'Неизвестная ошибка',
+      scriptLoadError: 'Не удалось загрузить ',
+    },
+    en: {
+      sidebarTitle: 'Contents',
+      hideToc: 'Hide contents (Ctrl+O)',
+      searchPlaceholder: 'Find in document…',
+      searchPrev: 'Previous (Shift+Enter)',
+      searchNext: 'Next (Enter)',
+      searchClose: 'Close (Esc)',
+      scrollTop: 'Back to top',
+      words: ['word', 'words'],
+      headings: ['heading', 'headings'],
+      min: 'min',
+      copy: 'Copy',
+      copied: 'Copied!',
+      mermaidNotLoaded: 'Mermaid diagram not rendered: the mermaid library failed to load.',
+      mermaidError: 'Mermaid diagram error: ',
+      errorTitle: 'Error',
+      unknownError: 'Unknown error',
+      scriptLoadError: 'Failed to load ',
+    },
+  };
+
+  function T(key) {
+    return (I18N[state.lang] || I18N.ru)[key];
+  }
 
   // ---------- Мост к C#-хосту ----------
   function post(msg) {
@@ -134,6 +183,7 @@
   function applySettings(s) {
     if (!s) return;
     state.settings = Object.assign({}, state.settings, s);
+    if (s.language) applyLang(s.language);
     setTheme(s.theme || 'System');
     setZoom(s.zoom || 100);
     document.documentElement.style.setProperty('--reading-width', (s.readingWidth || 900) + 'px');
@@ -141,6 +191,26 @@
     sourceScroll.hidden = !s.splitView;
     document.body.classList.toggle('no-line-numbers', s.showLineNumbers === false);
     if (s.codeTheme) setCodeTheme(s.codeTheme);
+  }
+
+  // Применяет язык интерфейса: статические подписи, кнопки копирования, статус-строка.
+  // Значения берутся из I18N; хост присылает эффективный язык в настройках (language).
+  function applyLang(lang) {
+    const l = (lang === 'en') ? 'en' : 'ru';
+    if (state.lang === l) return;
+    state.lang = l;
+    document.documentElement.lang = l;
+
+    $('#sidebar-title').textContent = T('sidebarTitle');
+    $('#btn-close-sidebar').title = T('hideToc');
+    $('#search-input').placeholder = T('searchPlaceholder');
+    $('#search-prev').title = T('searchPrev');
+    $('#search-next').title = T('searchNext');
+    $('#search-close').title = T('searchClose');
+    $('#btn-top').title = T('scrollTop');
+
+    content.querySelectorAll('.copy-btn').forEach((b) => { b.textContent = T('copy'); });
+    updateStats(state.stats);
   }
 
   function setTheme(theme) {
@@ -370,12 +440,15 @@
   // ---------- Статус-строка ----------
   function updateStats(stats) {
     if (!stats) return;
-    $('#status-words').textContent = plural(stats.words, ['слово', 'слова', 'слов']);
-    $('#status-time').textContent = '~' + stats.readingTime + ' мин';
-    $('#status-headings').textContent = plural(stats.headings, ['заголовок', 'заголовка', 'заголовков']);
+    state.stats = stats;
+    $('#status-words').textContent = plural(stats.words, T('words'));
+    $('#status-time').textContent = '~' + stats.readingTime + ' ' + T('min');
+    $('#status-headings').textContent = plural(stats.headings, T('headings'));
   }
 
   function plural(n, forms) {
+    if (state.lang === 'en')
+      return n + ' ' + (Math.abs(n) === 1 ? forms[0] : forms[1]);
     const a = Math.abs(n) % 100;
     const b = a % 10;
     const word = (a > 10 && a < 20) ? forms[2]
@@ -424,13 +497,13 @@
       pre.classList.add('code-block');
       const btn = document.createElement('button');
       btn.className = 'copy-btn';
-      btn.textContent = 'Копировать';
+      btn.textContent = T('copy');
       btn.addEventListener('click', () => {
         const text = code.textContent;
         if (navigator.clipboard) {
           navigator.clipboard.writeText(text).then(() => {
-            btn.textContent = 'Скопировано!';
-            setTimeout(() => { btn.textContent = 'Копировать'; }, 1500);
+            btn.textContent = T('copied');
+            setTimeout(() => { btn.textContent = T('copy'); }, 1500);
           });
         } else {
           // Фолбэк для старых движков
@@ -440,8 +513,8 @@
           ta.select();
           document.execCommand('copy');
           document.body.removeChild(ta);
-          btn.textContent = 'Скопировано!';
-          setTimeout(() => { btn.textContent = 'Копировать'; }, 1500);
+          btn.textContent = T('copied');
+          setTimeout(() => { btn.textContent = T('copy'); }, 1500);
         }
       });
       pre.appendChild(btn);
@@ -470,7 +543,7 @@
       const s = document.createElement('script');
       s.src = src;
       s.onload = () => resolve();
-      s.onerror = () => reject(new Error('Не удалось загрузить ' + src));
+      s.onerror = () => reject(new Error(T('scriptLoadError') + src));
       document.body.appendChild(s);
     });
     return loadedScripts[src];
@@ -532,7 +605,7 @@
         .catch((e) => {
           console.error('Mermaid:', e);
           blocks.forEach((b) => {
-            b.textContent = 'Диаграмма Mermaid не отрисована: библиотека mermaid не загрузилась.';
+            b.textContent = T('mermaidNotLoaded');
           });
         });
       return;
@@ -556,7 +629,7 @@
           console.error('Mermaid:', e);
           blocks.forEach((b) => {
             if (!b.querySelector('svg')) {
-              b.textContent = 'Ошибка диаграммы Mermaid: ' + (e && e.message ? e.message : String(e));
+              b.textContent = T('mermaidError') + (e && e.message ? e.message : String(e));
             }
           });
         });
@@ -569,8 +642,8 @@
   // ---------- Ошибка ----------
   function showError(text) {
     content.innerHTML = '<div style="padding:2em;text-align:center;color:#c0392b;">' +
-      '<h2>Ошибка</h2><p></p></div>';
-    content.querySelector('p').textContent = text || 'Неизвестная ошибка';
+      '<h2>' + T('errorTitle') + '</h2><p></p></div>';
+    content.querySelector('p').textContent = text || T('unknownError');
   }
 
   // ---------- Клавиатура ----------
@@ -606,7 +679,14 @@
       e.preventDefault();
       gotoHit(e.shiftKey ? -1 : 1);
     } else if (e.key === 'Escape') {
-      if (!$('#search-bar').hidden) closeSearch();
+      if (!$('#search-bar').hidden) {
+        closeSearch();
+      } else {
+        // Ничего не открыто — Escape закрывает окно просмотра, как в самом TC.
+        // (Открытое контекстное меню перехватывает Escape раньше — см. обработчик меню.)
+        e.preventDefault();
+        post({ type: 'close' });
+      }
     } else if (e.key === 'Enter' && !$('#search-bar').hidden && document.activeElement === $('#search-input')) {
       e.preventDefault();
       gotoHit(e.shiftKey ? -1 : 1);

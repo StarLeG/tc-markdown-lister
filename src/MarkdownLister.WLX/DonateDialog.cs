@@ -25,7 +25,7 @@ namespace MarkdownLister.WLX
         {
             _boldFont = new Font(Font, FontStyle.Bold);
 
-            Text = "Поддержать проект — MarkdownLister";
+            Text = Loc.T("Donate.Title");
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
@@ -52,7 +52,7 @@ namespace MarkdownLister.WLX
 
             var closeButton = new Button
             {
-                Text = "Закрыть",
+                Text = Loc.T("Donate.Close"),
                 DialogResult = DialogResult.OK,
                 Dock = DockStyle.Bottom,
                 Height = 34,
@@ -90,52 +90,42 @@ namespace MarkdownLister.WLX
 
         private void BuildContent(FlowLayoutPanel flow)
         {
-            flow.Controls.Add(MakeText(
-                "Любая сумма, за минуту. Фиксированного прайса нет: сумму и повод " +
-                "выбираете сами. Удобнее всего с телефона."));
+            flow.Controls.Add(MakeText(Loc.T("Donate.Intro")));
 
             // ЮMoney
             flow.Controls.Add(MakeHeader("ЮMoney"));
-            flow.Controls.Add(MakeText("Картой любого банка, без регистрации."));
-            flow.Controls.Add(MakeValue("Кошелёк: 4100119514684342", "4100119514684342"));
-            flow.Controls.Add(MakeLink("Перевести через ЮMoney →", YooMoneyUrl));
+            flow.Controls.Add(MakeText(Loc.T("Donate.YooMoney.Text")));
+            flow.Controls.Add(MakeValue(Loc.T("Donate.YooMoney.Wallet", "4100119514684342"), "4100119514684342"));
+            flow.Controls.Add(MakeLink(Loc.T("Donate.YooMoney.Link"), YooMoneyUrl));
 
             // WebMoney
             flow.Controls.Add(MakeHeader("WebMoney"));
-            flow.Controls.Add(MakeText("Страница доната или бот в Telegram."));
-            flow.Controls.Add(MakeLink("Страница доната →", WebMoneyUrl));
-            flow.Controls.Add(MakeLink("Бот WebMoney в Telegram →", WebMoneyBotUrl));
+            flow.Controls.Add(MakeText(Loc.T("Donate.WebMoney.Text")));
+            flow.Controls.Add(MakeLink(Loc.T("Donate.WebMoney.Page"), WebMoneyUrl));
+            flow.Controls.Add(MakeLink(Loc.T("Donate.WebMoney.Bot"), WebMoneyBotUrl));
 
             // IBAN (Беларусь)
-            flow.Controls.Add(MakeHeader("Пополнение счёта по IBAN (Беларусь)"));
-            flow.Controls.Add(MakeText(
-                "Из интернет-банка или приложения другого банка, не Сбер Банка, — " +
-                "оплатой через ЕРИП:"));
-            flow.Controls.Add(MakeText(
-                "ЕРИП → Банковские, финансовые услуги → Банки, НКО и НФО → Сбер Банк → " +
-                "Пополнение счёта картой", small: true));
+            flow.Controls.Add(MakeHeader(Loc.T("Donate.Iban.Header")));
+            flow.Controls.Add(MakeText(Loc.T("Donate.Iban.Text1")));
+            // Путь в меню ЕРИП повторяет пункты банковского интерфейса (они на русском)
+            // и не переводится.
+            flow.Controls.Add(MakeText(Loc.T("Donate.Iban.Path"), small: true));
             flow.Controls.Add(MakeValue(
-                "Номер счёта: BY18 BPSB 3014 F000 0000 1164 7609",
+                Loc.T("Donate.Iban.Account", "BY18 BPSB 3014 F000 0000 1164 7609"),
                 "BY18BPSB3014F000000011647609"));
             flow.Controls.Add(MakeValue(
-                "Клиентам Сбер Банка — перевод по номеру телефона: +375 29 714‑28‑82",
+                Loc.T("Donate.Iban.SberPhone", "+375 29 714‑28‑82"),
                 "+375297142882"));
-            flow.Controls.Add(MakeText(
-                "Перед оплатой система покажет имя получателя — проверьте его.", small: true));
+            flow.Controls.Add(MakeText(Loc.T("Donate.Iban.Verify"), small: true));
 
             // СберБанк (Россия)
-            flow.Controls.Add(MakeHeader("СберБанк (Россия) — по номеру телефона"));
-            flow.Controls.Add(MakeText(
-                "В СберБанк Онлайн: перевод в Беларусь по номеру телефона, получатель — " +
-                "клиент Сбер Банка (Беларусь)."));
-            flow.Controls.Add(MakeValue("Номер: +375 29 714‑28‑82", "+375297142882"));
-            flow.Controls.Add(MakeText(
-                "Перед переводом приложение покажет имя получателя — проверьте его.", small: true));
+            flow.Controls.Add(MakeHeader(Loc.T("Donate.Sber.Header")));
+            flow.Controls.Add(MakeText(Loc.T("Donate.Sber.Text")));
+            flow.Controls.Add(MakeValue(Loc.T("Donate.Sber.Number", "+375 29 714‑28‑82"), "+375297142882"));
+            flow.Controls.Add(MakeText(Loc.T("Donate.Sber.Verify"), small: true));
 
             // Не только деньгами
-            flow.Controls.Add(MakeText(
-                "Не только деньгами: отчёт о баге или рассказ коллегам на форуме " +
-                "помогают проекту не меньше.", small: true));
+            flow.Controls.Add(MakeText(Loc.T("Donate.NotOnly"), small: true));
         }
 
         private Control MakeHeader(string text)
@@ -186,7 +176,7 @@ namespace MarkdownLister.WLX
             };
             var button = new Button
             {
-                Text = "Копировать",
+                Text = Loc.T("Donate.Copy"),
                 AutoSize = true,
                 Margin = new Padding(8, 0, 0, 0),
             };
@@ -217,11 +207,11 @@ namespace MarkdownLister.WLX
             try
             {
                 Clipboard.SetText(value);
-                button.Text = "Скопировано";
+                button.Text = Loc.T("Donate.Copied");
                 var timer = new Timer { Interval = 1500 };
                 timer.Tick += (s, e) =>
                 {
-                    button.Text = "Копировать";
+                    button.Text = Loc.T("Donate.Copy");
                     timer.Stop();
                     timer.Dispose();
                 };

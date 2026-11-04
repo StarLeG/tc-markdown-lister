@@ -48,6 +48,7 @@ namespace MarkdownLister.WLX
                 PluginDir = Bootstrap.PluginDir;
 
                 Settings = new PluginSettings(Path.Combine(PluginDir, "MarkdownLister.WLX.dll"));
+                Loc.SetLanguage(Settings.Language); // строки UI — до первого MessageBox
                 Logger.Init(PluginDir, Settings.LogErrors);
                 Logger.Info("MarkdownLister инициализирован; папка: " + PluginDir);
             }
@@ -109,8 +110,9 @@ namespace MarkdownLister.WLX
                 if (limitBytes > 0 && fi.Length > limitBytes)
                 {
                     DialogResult answer = MessageBox.Show(
-                        $"Файл «{fi.Name}» имеет размер {fi.Length / 1048576.0:F1} МБ " +
-                        $"(порог предупреждения — {Settings.LargeFileWarningMb} МБ).\n\nОткрыть его?",
+                        Loc.T("LargeFile.Text", fi.Name,
+                            fi.Length / 1048576.0,
+                            Settings.LargeFileWarningMb),
                         "MarkdownLister",
                         MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
                     if (answer != DialogResult.Yes)

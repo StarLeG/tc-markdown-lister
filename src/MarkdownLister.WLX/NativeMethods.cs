@@ -17,6 +17,10 @@ namespace MarkdownLister.WLX
         public const int WM_CONTEXTMENU = 0x007B;
         public const int WM_CLOSE = 0x0010;
 
+        // Стили окон
+        public const int GWL_STYLE = -16;
+        public const int WS_CHILD = 0x40000000;
+
         // Флаги ShowFlags для ListLoad/ListLoadNext
         public const int lcp_wraptext = 0x01;
         public const int lcp_fittowindow = 0x02;
@@ -44,6 +48,18 @@ namespace MarkdownLister.WLX
 
         [DllImport("user32.dll")]
         public static extern bool DestroyWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetParent(IntPtr hWnd);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+        [DllImport("user32.dll")]
+        public static extern bool PostMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
+        public static extern int GetWindowLong(IntPtr hWnd, int nIndex);
 
         [DllImport("user32.dll")]
         public static extern bool SetFocus(IntPtr hWnd);
