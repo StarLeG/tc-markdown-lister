@@ -18,7 +18,9 @@
     lang: null,          // язык интерфейса: 'ru' | 'en' (из настроек хоста)
     stats: null,         // последние значения статус-строки (для смены языка)
     large: false,        // большой документ: рендеринг чанками, без тяжёлых украшений
-    imageBase: '',       // базовый URL локальных картинок (виртуальный хост)
+    imageBase: '',       // базовый URL папки документа (виртуальный хост)
+    imageRootBase: '',   // базовый URL корня раздачи (диск/шара документа)
+    imageRoot: '',       // корень раздачи в виде пути (C:\, \\server\share\)
     sourceLoaded: false, // исходник (split view) уже получен
     sourceRequested: false, // запрос исходника уже отправлен хосту
   };
@@ -105,7 +107,8 @@
         setLoading(null);
         break;
       case 'load':
-        renderDocument(msg.html, msg.source, msg.headings, msg.settings, msg.stats, msg.imageBase);
+        renderDocument(msg.html, msg.source, msg.headings, msg.settings, msg.stats,
+          msg.imageBase, msg.imageRoot, msg.imageRootBase);
         break;
       case 'load-begin':
         beginLargeDocument(msg);
@@ -162,13 +165,15 @@
   }
 
   // ---------- Рендеринг документа ----------
-  function renderDocument(html, source, headings, settings, stats, imageBase) {
+  function renderDocument(html, source, headings, settings, stats, imageBase, imageRoot, imageRootBase) {
     state.html = html || '';
     state.source = source || '';
     state.headings = headings || [];
     state.settings = settings || {};
     state.large = false;
     state.imageBase = imageBase || '';
+    state.imageRoot = imageRoot || '';
+    state.imageRootBase = imageRootBase || '';
     state.sourceLoaded = !!source;
     state.sourceRequested = false;
 
@@ -196,6 +201,8 @@
     state.settings = msg.settings || {};
     state.large = true;
     state.imageBase = msg.imageBase || '';
+    state.imageRoot = msg.imageRoot || '';
+    state.imageRootBase = msg.imageRootBase || '';
     state.sourceLoaded = false;
     state.sourceRequested = false;
 
@@ -237,19 +244,36 @@
       ADD_ATTR: ['target', 'rel', 'class', 'id'],
       ADD_TAGS: ['input'],            // чекбоксы списков задач
       FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form'],
+      // Пути Windows-файлов (C:\..., \\server\share\...) в src картинок — это
+      // локальные пути, а не «небезопасные схемы»: разрешаем их (переписывание
+      // на виртуальный хост происходит после санитизации).
+      ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$)|[a-z]:[\\/]|\\\\)/i,
     });
   }
 
-  // Переписывает относительные пути картинок на виртуальный хост папки
-  // документа (state.imageBase). Абсолютные URL, data: и якоря не трогаем.
+  // Переписывает пути локальных картинок на виртуальный хост корня документа.
+  // Относительные (включая ./ и ../) резолвятся против папки документа;
+  // абсолютные пути файловой системы — если лежат на том же корне (диске/шаре),
+  // что и документ. Внешние URL, data: и якоря не трогаем.
   function rewriteImageUrlsIn(root) {
     if (!state.imageBase) return;
     root.querySelectorAll('img').forEach((img) => {
       const src = img.getAttribute('src') || '';
       if (!src || /^(https?:|data:|blob:|\/\/|#)/i.test(src)) return;
-      // Абсолютные пути файловой системы не отдаются через хост папки документа
-      if (/^([a-z]:)?[/\\]/i.test(src)) return;
-      img.src = state.imageBase + encodeURI(src.replace(/\\/g, '/'));
+      const norm = src.replace(/\\/g, '/');
+      try {
+        if (/^([a-z]:\/|\/\/[^/])/i.test(norm)) {
+          // Абсолютный путь (C:/..., //server/share/...) — свой корень отдаём
+          // через виртуальный хост, чужой оставляем как есть.
+          const rootNorm = (state.imageRoot || '').replace(/\\/g, '/');
+          if (rootNorm && norm.toLowerCase().startsWith(rootNorm.toLowerCase())) {
+            img.src = new URL(norm.substring(rootNorm.length), state.imageRootBase).href;
+          }
+          return;
+        }
+        if (norm.startsWith('/')) return;
+        img.src = new URL(norm, state.imageBase).href;
+      } catch { /* оставляем src как есть */ }
     });
   }
 

@@ -43,8 +43,11 @@ namespace MarkdownLister.WLX
         private string _currentFile;
         private bool _ready;
 
-        /// <summary>Папка, уже разданная через MediaHost (для отслеживания смены маппинга).</summary>
-        private string _mappedDir;
+        /// <summary>Корень (диск/шара), уже разданный через MediaHost (для отслеживания смены маппинга).</summary>
+        private string _mappedRoot;
+
+        /// <summary>Папка документа внутри корня, URL-стиль (например, <c>docs/images</c>), без хоста.</summary>
+        private string _mediaPrefix;
 
         /// <summary>Страница template.html уже загружена (навигация выполнена).</summary>
         private bool _pageNavigated;
@@ -294,7 +297,9 @@ namespace MarkdownLister.WLX
                 ["headings"] = HeadingsToDto(_pendingDoc.Headings),
                 ["settings"] = SettingsToDto(),
                 ["stats"] = StatsToDto(_pendingDoc.Stats),
-                ["imageBase"] = "https://" + MediaHost + "/",
+                ["imageBase"] = ImageBaseUrl,
+                ["imageRootBase"] = "https://" + MediaHost + "/",
+                ["imageRoot"] = _mappedRoot ?? "",
             };
             Send(msg);
         }
@@ -318,7 +323,9 @@ namespace MarkdownLister.WLX
                     ["headings"] = HeadingsToDto(doc.Headings),
                     ["settings"] = SettingsToDto(),
                     ["stats"] = StatsToDto(doc.Stats),
-                    ["imageBase"] = "https://" + MediaHost + "/",
+                    ["imageBase"] = ImageBaseUrl,
+                    ["imageRootBase"] = "https://" + MediaHost + "/",
+                    ["imageRoot"] = _mappedRoot ?? "",
                     ["size"] = doc.FileSizeBytes,
                 });
 
@@ -405,9 +412,12 @@ namespace MarkdownLister.WLX
             }
         }
 
-        /// <summary>Раздаёт папку документа через виртуальный хост для локальных картинок.</summary>
+        /// <summary>Раздаёт корень документа (диск/шару) через виртуальный хост для локальных
+        /// картинок: так работают относительные пути с <c>../</c> и абсолютные пути того же
+        /// корня. Страница санитизирована, CSP ограничивает ресурсы картинками (img-src),
+        /// скрипты берутся только из web\ плагина.</summary>
         /// <param name="docPath">Путь к просматриваемому файлу.</param>
-        /// <returns>true — маппинг был установлен/изменён сейчас.</returns>
+        /// <returns>true — корень раздачи был установлен/изменён сейчас.</returns>
         private bool MapDocumentMedia(string docPath)
         {
             try
@@ -415,20 +425,26 @@ namespace MarkdownLister.WLX
                 if (string.IsNullOrEmpty(docPath))
                     return false;
 
-                string dir = Path.GetDirectoryName(Path.GetFullPath(docPath));
-                if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
+                string full = Path.GetFullPath(docPath);
+                string dir = Path.GetDirectoryName(full);
+                string root = Path.GetPathRoot(full);
+                if (string.IsNullOrEmpty(dir) || string.IsNullOrEmpty(root) || !Directory.Exists(dir))
                     return false;
-                if (string.Equals(dir, _mappedDir, StringComparison.OrdinalIgnoreCase))
+
+                // Папка документа внутри корня — база для относительных путей картинок
+                _mediaPrefix = dir.Substring(root.Length).TrimEnd('\\', '/').Replace('\\', '/');
+
+                if (string.Equals(root, _mappedRoot, StringComparison.OrdinalIgnoreCase))
                     return false;
 
                 CoreWebView2 core = _webView?.CoreWebView2;
                 if (core == null)
                     return false;
 
-                core.SetVirtualHostNameToFolderMapping(MediaHost, dir,
+                core.SetVirtualHostNameToFolderMapping(MediaHost, root,
                     CoreWebView2HostResourceAccessKind.Allow);
-                _mappedDir = dir;
-                Logger.Info("MapDocumentMedia: " + MediaHost + " -> " + dir);
+                _mappedRoot = root;
+                Logger.Info("MapDocumentMedia: " + MediaHost + " -> " + root + " (doc dir: " + _mediaPrefix + ")");
                 return true;
             }
             catch (Exception ex)
@@ -437,6 +453,10 @@ namespace MarkdownLister.WLX
                 return false;
             }
         }
+
+        /// <summary>Базовый URL папки документа (для относительных путей картинок).</summary>
+        private string ImageBaseUrl => "https://" + MediaHost + "/" +
+            (string.IsNullOrEmpty(_mediaPrefix) ? "" : _mediaPrefix + "/");
 
         private List<Dictionary<string, object>> HeadingsToDto(List<Heading> headings)
         {
