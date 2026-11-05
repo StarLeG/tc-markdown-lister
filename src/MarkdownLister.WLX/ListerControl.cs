@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -81,6 +82,13 @@ namespace MarkdownLister.WLX
         private ToolStripMenuItem _themeSystem, _themeLight, _themeDark;
         private ToolStripMenuItem _langAuto, _langRu, _langEn;
         private ToolStripMenuItem _tocItem, _splitItem, _lineNumbersItem;
+        private ToolStripMenuItem _updateNotifyItem, _updateCheckItem;
+
+        /// <summary>Информация о доступной новой версии (кеш: проверка обновлений).</summary>
+        private UpdateInfo _updateInfo;
+
+        /// <summary>Проверка обновлений уже выполняется.</summary>
+        private bool _updateCheckRunning;
 
         /// <summary>Создаёт контрол с заданными настройками.</summary>
         /// <param name="settings">Настройки плагина.</param>
@@ -92,6 +100,7 @@ namespace MarkdownLister.WLX
             BackColor = SystemColors.Window;
 
             Loc.SetLanguage(_settings.Language);
+            RestoreCachedUpdate();
             BuildContextMenu();
             CreateWebView();
         }
@@ -540,6 +549,11 @@ namespace MarkdownLister.WLX
                     case "ready":
                         _ready = true;
                         PushDocument();
+                        StartUpdateCheck(false); // авто: не чаще раза в сутки, если не отключено
+                        break;
+
+                    case "check-updates":
+                        StartUpdateCheck(true);
                         break;
 
                     case "need-source":
@@ -869,6 +883,16 @@ namespace MarkdownLister.WLX
             _menu.Items.Add(Loc.T("Menu.Print"), null, (s, e) => ShowPrint());
             _menu.Items.Add(Loc.T("Menu.ExportPdf"), null, (s, e) => ExportPdf());
             _menu.Items.Add(new ToolStripSeparator());
+
+            // Оповещение о новой версии (видно только при найденном обновлении)
+            _updateNotifyItem = new ToolStripMenuItem("", null, (s, e) => OpenUpdateRelease());
+            _updateNotifyItem.Font = new Font(_menu.Font, FontStyle.Bold);
+            _updateCheckItem = new ToolStripMenuItem(Loc.T("Menu.CheckUpdates"), null,
+                (s, e) => StartUpdateCheck(true));
+            _menu.Items.Add(_updateNotifyItem);
+            _menu.Items.Add(_updateCheckItem);
+
+            _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(Loc.T("Menu.Donate"), null, (s, e) => ShowDonate());
             _menu.Items.Add(Loc.T("Menu.About"), null, (s, e) => ShowAbout());
 
@@ -926,6 +950,142 @@ namespace MarkdownLister.WLX
             {
                 Logger.Error("ClosePluginMenu", ex);
             }
+        }
+
+        // ---------------------------------------------------------------
+        // Проверка обновлений (единственный сетевой запрос плагина)
+        // ---------------------------------------------------------------
+
+        /// <summary>Текущая версия плагина (три компонента).</summary>
+        private static Version CurrentVersion()
+        {
+            Version v = typeof(ListerControl).Assembly.GetName().Version ?? new Version(0, 0, 0);
+            return new Version(Math.Max(0, v.Major), Math.Max(0, v.Minor),
+                Math.Max(0, v.Build < 0 ? 0 : v.Build));
+        }
+
+        /// <summary>Восстанавливает кеш найденного обновления из INI (между запусками TC).</summary>
+        private void RestoreCachedUpdate()
+        {
+            try
+            {
+                Version cached;
+                if (UpdateChecker.TryParseVersion(_settings.UpdateAvailableVersion, out cached)
+                    && cached > CurrentVersion())
+                {
+                    _updateInfo = new UpdateInfo
+                    {
+                        UpdateAvailable = true,
+                        LatestVersion = cached.ToString(3),
+                        ReleaseUrl = string.IsNullOrEmpty(_settings.UpdateAvailableUrl)
+                            ? UpdateChecker.ReleasesPageUrl
+                            : _settings.UpdateAvailableUrl,
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("RestoreCachedUpdate", ex);
+            }
+        }
+
+        /// <summary>
+        /// Запускает проверку обновлений в фоне (никогда не блокирует UI).
+        /// Автопроверка выполняется не чаще раза в сутки; ручная — всегда.
+        /// </summary>
+        /// <param name="manual">true — по явному действию пользователя.</param>
+        private void StartUpdateCheck(bool manual)
+        {
+            try
+            {
+                if (_updateCheckRunning)
+                    return;
+
+                if (!manual)
+                {
+                    if (!string.Equals(_settings.CheckUpdates, "Auto", StringComparison.OrdinalIgnoreCase))
+                        return;
+
+                    DateTime last;
+                    if (DateTime.TryParse(_settings.LastUpdateCheckUtc, CultureInfo.InvariantCulture,
+                            DateTimeStyles.RoundtripKind, out last)
+                        && DateTime.UtcNow - last < TimeSpan.FromHours(24))
+                        return;
+                }
+
+                _updateCheckRunning = true;
+                Send(new Dictionary<string, object>
+                {
+                    ["type"] = "update-state", ["status"] = "checking", ["manual"] = manual,
+                });
+
+                Version current = CurrentVersion();
+                Task.Run(() =>
+                {
+                    UpdateInfo info = UpdateChecker.Check(current);
+
+                    // Кеш результатов — вне UI-потока
+                    try
+                    {
+                        _settings.LastUpdateCheckUtc = DateTime.UtcNow.ToString("o");
+                        if (info.Error == null)
+                        {
+                            _settings.UpdateAvailableVersion = info.UpdateAvailable ? (info.LatestVersion ?? "") : "";
+                            _settings.UpdateAvailableUrl = info.UpdateAvailable ? (info.ReleaseUrl ?? "") : "";
+                        }
+                        _settings.Save();
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Error("StartUpdateCheck.Save", ex);
+                    }
+
+                    try
+                    {
+                        if (IsDisposed || !IsHandleCreated)
+                            return;
+                        BeginInvoke((Action)(() =>
+                        {
+                            _updateCheckRunning = false;
+                            if (info.Error == null)
+                                _updateInfo = info.UpdateAvailable ? info : null;
+                            UpdateMenuState();
+                            SendUpdateState(info, manual);
+                        }));
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Error("StartUpdateCheck.UI", ex);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("StartUpdateCheck", ex);
+            }
+        }
+
+        /// <summary>Отправляет странице состояние проверки обновлений.</summary>
+        /// <param name="info">Результат проверки.</param>
+        /// <param name="manual">Проверка запущена пользователем.</param>
+        private void SendUpdateState(UpdateInfo info, bool manual)
+        {
+            string status = info.Error != null ? "error" : (info.UpdateAvailable ? "available" : "latest");
+            Send(new Dictionary<string, object>
+            {
+                ["type"] = "update-state",
+                ["status"] = status,
+                ["version"] = info.LatestVersion ?? "",
+                ["url"] = info.ReleaseUrl ?? "",
+                ["manual"] = manual,
+            });
+        }
+
+        /// <summary>Открывает страницу релиза новой версии в браузере.</summary>
+        private void OpenUpdateRelease()
+        {
+            if (_updateInfo != null && !string.IsNullOrEmpty(_updateInfo.ReleaseUrl))
+                OpenExternal(_updateInfo.ReleaseUrl);
         }
 
         /// <summary>
@@ -990,6 +1150,11 @@ namespace MarkdownLister.WLX
             _langAuto.Checked = lang.Equals("Auto", StringComparison.OrdinalIgnoreCase);
             _langRu.Checked = lang.Equals("Ru", StringComparison.OrdinalIgnoreCase);
             _langEn.Checked = lang.Equals("En", StringComparison.OrdinalIgnoreCase);
+
+            bool hasUpdate = _updateInfo != null && _updateInfo.UpdateAvailable;
+            _updateNotifyItem.Visible = hasUpdate;
+            if (hasUpdate)
+                _updateNotifyItem.Text = Loc.T("Menu.UpdateAvailable", _updateInfo.LatestVersion);
         }
 
         private void ToggleToc()

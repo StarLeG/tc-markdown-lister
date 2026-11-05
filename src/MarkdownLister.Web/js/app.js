@@ -23,6 +23,7 @@
     imageRoot: '',       // корень раздачи в виде пути (C:\, \\server\share\)
     sourceLoaded: false, // исходник (split view) уже получен
     sourceRequested: false, // запрос исходника уже отправлен хосту
+    update: null,        // состояние проверки обновлений ({status, version, url, manual})
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -55,6 +56,11 @@
       loading: 'Загрузка документа…',
       largeBanner: 'Большой файл ({n} МБ): подсветка кода, диаграммы, формулы и номера строк отключены для производительности.',
       hideBanner: 'Скрыть',
+      updateChecking: 'Проверка обновлений…',
+      updateLatest: 'Установлена последняя версия',
+      updateAvailable: 'Доступна новая версия {v} ↗',
+      updateError: 'Не удалось проверить обновления',
+      updateOpen: 'Открыть страницу релиза',
     },
     en: {
       sidebarTitle: 'Contents',
@@ -77,6 +83,11 @@
       loading: 'Loading document…',
       largeBanner: 'Large file ({n} MB): syntax highlighting, diagrams, formulas and line numbers are disabled for performance.',
       hideBanner: 'Hide',
+      updateChecking: 'Checking for updates…',
+      updateLatest: 'You have the latest version',
+      updateAvailable: 'New version {v} available ↗',
+      updateError: 'Could not check for updates',
+      updateOpen: 'Open the release page',
     },
   };
 
@@ -155,6 +166,9 @@
       case 'error':
         showError(msg.text);
         break;
+      case 'update-state':
+        applyUpdateState(msg);
+        break;
       case 'menu-opened':
         state.menuOpen = true;
         break;
@@ -162,6 +176,40 @@
         state.menuOpen = false;
         break;
     }
+  }
+
+  // ---------- Проверка обновлений ----------
+  // Статус в статус-строке: найденная версия (клик — открыть страницу релиза)
+  // либо результат ручной проверки (клик — скрыть). Автопроверка без обновления
+  // ничего не показывает — без лишнего шума.
+  function applyUpdateState(msg) {
+    const el = $('#status-update');
+    state.update = {
+      status: msg.status, version: msg.version || '', url: msg.url || '', manual: !!msg.manual,
+    };
+    el.classList.remove('update-muted');
+
+    if (msg.status === 'available') {
+      el.textContent = T('updateAvailable').replace('{v}', msg.version || '');
+      el.title = T('updateOpen');
+    } else if (msg.status === 'checking') {
+      el.textContent = T('updateChecking');
+      el.classList.add('update-muted');
+      el.title = '';
+    } else if (msg.manual && msg.status === 'latest') {
+      el.textContent = T('updateLatest');
+      el.classList.add('update-muted');
+      el.title = '';
+    } else if (msg.manual && msg.status === 'error') {
+      el.textContent = T('updateError');
+      el.classList.add('update-muted');
+      el.title = '';
+    } else {
+      el.hidden = true;
+      el.textContent = '';
+      return;
+    }
+    el.hidden = false;
   }
 
   // ---------- Рендеринг документа ----------
@@ -348,6 +396,7 @@
 
     content.querySelectorAll('.copy-btn').forEach((b) => { b.textContent = T('copy'); });
     updateStats(state.stats);
+    if (state.update) applyUpdateState(state.update);
   }
 
   function setTheme(theme) {
@@ -916,6 +965,16 @@
   $('#btn-top').addEventListener('click', () => contentScroll.scrollTo({ top: 0, behavior: 'smooth' }));
   $('#btn-close-sidebar').addEventListener('click', toggleSidebar);
   $('#large-banner-close').addEventListener('click', hideLargeBanner);
+  $('#status-update').addEventListener('click', () => {
+    const u = state.update;
+    if (!u) return;
+    if (u.status === 'available' && u.url) {
+      post({ type: 'open-external', href: u.url });
+    } else if (u.status === 'latest' || u.status === 'error') {
+      // Результат ручной проверки — гасим по клику
+      $('#status-update').hidden = true;
+    }
+  });
 
   // Внутренние ссылки документа (other.md#section) — передаём хосту
   content.addEventListener('click', (e) => {

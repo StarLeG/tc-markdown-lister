@@ -56,7 +56,8 @@ fully local, no telemetry.
 | 🧭 | **Navigation** — table of contents (TOC) in the sidebar, in-document search (including code blocks) |
 | 📚 | **Large files** — async loading and progressive chunked rendering (verified with a 100 MB file), progress indicator, warning and lightweight mode from 5 MB |
 | 📤 | **Export** — PDF, print, standalone HTML |
-| ⚙️ | **Reliability** — encoding detection (UTF-8/UTF-16/ANSI via UTF.Unknown), protection against huge files, error logging, INI settings, fully local with no telemetry |
+| 🔔 | **Updates** — new version notifications: automatic GitHub check once a day or manually from the menu, disable with `CheckUpdates=Off` |
+| ⚙️ | **Reliability** — encoding detection (UTF-8/UTF-16/ANSI via UTF.Unknown), protection against huge files, error logging, INI settings, no telemetry (the only network request is the update check) |
 
 ## Quick Start
 

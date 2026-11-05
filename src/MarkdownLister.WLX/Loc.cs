@@ -74,6 +74,8 @@ namespace MarkdownLister.WLX
             ["Menu.LineNumbers"] = "Номера строк в коде",
             ["Menu.Print"] = "Печать…\tCtrl+P",
             ["Menu.ExportPdf"] = "Экспорт в PDF…",
+            ["Menu.CheckUpdates"] = "Проверить обновления…",
+            ["Menu.UpdateAvailable"] = "Доступна версия {0} ↗",
             ["Menu.Donate"] = "Поддержать проект…",
             ["Menu.About"] = "О плагине…",
 
@@ -172,6 +174,8 @@ namespace MarkdownLister.WLX
             ["Menu.LineNumbers"] = "Line numbers in code",
             ["Menu.Print"] = "Print…\tCtrl+P",
             ["Menu.ExportPdf"] = "Export to PDF…",
+            ["Menu.CheckUpdates"] = "Check for updates…",
+            ["Menu.UpdateAvailable"] = "Version {0} available ↗",
             ["Menu.Donate"] = "Support the project…",
             ["Menu.About"] = "About…",
 

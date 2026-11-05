@@ -40,6 +40,18 @@ namespace MarkdownLister.Core
         /// <summary>Предупреждать о файлах больше этого размера, МБ.</summary>
         public int LargeFileWarningMb { get; set; } = 5;
 
+        /// <summary>Автоматическая проверка обновлений: Auto (раз в сутки) или Off.</summary>
+        public string CheckUpdates { get; set; } = "Auto";
+
+        /// <summary>Момент последней проверки обновлений (UTC, ISO 8601).</summary>
+        public string LastUpdateCheckUtc { get; set; } = "";
+
+        /// <summary>Кеш: номер найденной новой версии (пусто — обновлений нет).</summary>
+        public string UpdateAvailableVersion { get; set; } = "";
+
+        /// <summary>Кеш: URL релиза найденной версии.</summary>
+        public string UpdateAvailableUrl { get; set; } = "";
+
         /// <summary>Путь к INI-файлу.</summary>
         public string IniPath { get; }
 
@@ -75,6 +87,10 @@ namespace MarkdownLister.Core
             SplitView = ReadBool("View", "SplitView", SplitView);
             LogErrors = ReadBool("General", "LogErrors", LogErrors);
             LargeFileWarningMb = Clamp(ReadInt("General", "LargeFileWarningMb", LargeFileWarningMb), 1, 500);
+            CheckUpdates = Read("General", "CheckUpdates", CheckUpdates);
+            LastUpdateCheckUtc = Read("General", "LastUpdateCheckUtc", LastUpdateCheckUtc);
+            UpdateAvailableVersion = Read("General", "UpdateAvailableVersion", UpdateAvailableVersion);
+            UpdateAvailableUrl = Read("General", "UpdateAvailableUrl", UpdateAvailableUrl);
         }
 
         /// <summary>Сохраняет настройки в INI-файл.</summary>
@@ -91,6 +107,10 @@ namespace MarkdownLister.Core
             Write("View", "SplitView", SplitView ? "1" : "0");
             Write("General", "LogErrors", LogErrors ? "1" : "0");
             Write("General", "LargeFileWarningMb", LargeFileWarningMb.ToString());
+            Write("General", "CheckUpdates", CheckUpdates ?? "Auto");
+            Write("General", "LastUpdateCheckUtc", LastUpdateCheckUtc ?? "");
+            Write("General", "UpdateAvailableVersion", UpdateAvailableVersion ?? "");
+            Write("General", "UpdateAvailableUrl", UpdateAvailableUrl ?? "");
         }
 
         /// <summary>Путь к папке тем рядом с плагином (themes\).</summary>

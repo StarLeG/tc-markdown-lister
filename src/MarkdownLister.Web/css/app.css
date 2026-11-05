@@ -314,6 +314,17 @@ mark.search-hit.current {
 #status-bar .sep { opacity: .5; }
 #status-bar .flex-spacer { flex: 1; }
 
+/* Оповещение о новой версии (проверка обновлений) */
+#status-update {
+  color: var(--accent, #d29922);
+  cursor: pointer;
+}
+#status-update:hover { text-decoration: underline; }
+#status-update.update-muted {
+  color: var(--fg-muted);
+  cursor: default;
+}
+
 /* =====================================================
    Рендеринг Markdown (стиль GitHub)
    ===================================================== */
