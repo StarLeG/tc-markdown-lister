@@ -5,6 +5,17 @@
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-11-06
+
+### Исправлено
+
+- Картинки по путям, которые раньше не отображались, теперь загружаются:
+  относительные с выходом выше папки документа (`../img.png`), с уже
+  закодированными символами (`img/pre%20enc.png` — устранено двойное
+  кодирование) и абсолютные пути Windows (`C:\...`, `\\server\share\...`).
+  Абсолютный путь показывается, если файл лежит на том же диске/шаре, что и
+  документ.
+
 ## [0.4.1] - 2026-11-05
 
 ### Исправлено
@@ -103,6 +114,7 @@ GitHub по **F3** и в Quick View (Ctrl+Q).
 - Настройки в `MarkdownLister.WLX.ini` рядом с плагином; без телеметрии
   и сетевых запросов.
 
+[0.4.2]: https://github.com/StarLeG/tc-markdown-lister/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/StarLeG/tc-markdown-lister/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/StarLeG/tc-markdown-lister/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/StarLeG/tc-markdown-lister/compare/v0.2.1...v0.3.0
