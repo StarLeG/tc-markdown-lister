@@ -1,8 +1,6 @@
 // Автор: Старинский Олег Григорьевич (info@electroman.by, @ElectroManBY)
 // Ядро MarkdownLister: статистика документа для статус-строки.
 
-using System.Text.RegularExpressions;
-
 namespace MarkdownLister.Core
 {
     /// <summary>Статистика Markdown-документа: слова, заголовки, время чтения.</summary>
@@ -18,8 +16,6 @@ namespace MarkdownLister.Core
         /// <summary>Средняя скорость чтения, слов в минуту.</summary>
         private const int WordsPerMinute = 200;
 
-        private static readonly Regex WordRegex = new Regex(@"\S+", RegexOptions.Compiled);
-
         /// <summary>Вычисляет статистику по тексту Markdown.</summary>
         /// <param name="markdown">Исходный текст Markdown.</param>
         public static DocumentStats Compute(string markdown)
@@ -28,38 +24,73 @@ namespace MarkdownLister.Core
             if (string.IsNullOrEmpty(markdown))
                 return stats;
 
-            stats.WordCount = WordRegex.Matches(markdown).Count;
+            // Подсчёт слов одним проходом: переход «пробел → не пробел» —
+            // эквивалент \S+, но без миллиона Match-объектов на большом файле.
+            bool inWord = false;
+            foreach (char ch in markdown)
+            {
+                if (char.IsWhiteSpace(ch))
+                {
+                    inWord = false;
+                }
+                else if (!inWord)
+                {
+                    inWord = true;
+                    stats.WordCount++;
+                }
+            }
 
             // Подсчёт заголовков — строки, начинающиеся с 1–6 решёток и пробела,
             // с учётом блоков кода (они не должны попадать в подсчёт).
+            // Построчный перебор по индексам — без копий текста (Replace + Split).
             bool inFence = false;
-            string fenceMarker = null;
-            foreach (var line in markdown.Replace("\r\n", "\n").Split('\n'))
+            char fenceChar = '\0';
+            int pos = 0;
+            while (pos < markdown.Length)
             {
-                var trimmed = line.TrimStart();
-                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                int lineStart = pos;
+                int nl = markdown.IndexOf('\n', pos);
+                int lineEnd = nl >= 0 ? nl : markdown.Length;
+                int contentEnd = lineEnd > lineStart && markdown[lineEnd - 1] == '\r'
+                    ? lineEnd - 1 : lineEnd;
+                pos = nl >= 0 ? nl + 1 : markdown.Length;
+
+                int first = lineStart;
+                while (first < contentEnd && (markdown[first] == ' ' || markdown[first] == '\t'))
+                    first++;
+
+                if (first + 3 <= contentEnd)
                 {
-                    if (!inFence)
+                    char c = markdown[first];
+                    if ((c == '`' || c == '~') &&
+                        markdown[first + 1] == c && markdown[first + 2] == c)
                     {
-                        inFence = true;
-                        fenceMarker = trimmed.Substring(0, 3);
+                        if (!inFence)
+                        {
+                            inFence = true;
+                            fenceChar = c;
+                        }
+                        else if (c == fenceChar)
+                        {
+                            inFence = false;
+                            fenceChar = '\0';
+                        }
+                        continue;
                     }
-                    else if (trimmed.StartsWith(fenceMarker))
-                    {
-                        inFence = false;
-                        fenceMarker = null;
-                    }
-                    continue;
                 }
                 if (inFence)
                     continue;
 
-                if (line.Length > 0 && line[0] == '#')
+                if (lineStart < contentEnd && markdown[lineStart] == '#')
                 {
                     int level = 0;
-                    while (level < line.Length && line[level] == '#')
+                    int i = lineStart;
+                    while (i < contentEnd && markdown[i] == '#')
+                    {
                         level++;
-                    if (level <= 6 && (level == line.Length || line[level] == ' '))
+                        i++;
+                    }
+                    if (level <= 6 && (i == contentEnd || markdown[i] == ' '))
                         stats.HeadingCount++;
                 }
             }

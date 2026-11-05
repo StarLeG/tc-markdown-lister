@@ -38,9 +38,17 @@
 
     <!-- Прокрутка документа -->
     <div id="content-scroll">
+      <!-- Предупреждение о большом файле (режим постепенного рендеринга) -->
+      <div id="large-banner" hidden>
+        <span id="large-banner-text"></span>
+        <button id="large-banner-close" title="Скрыть">×</button>
+      </div>
       <article id="content" class="markdown-body"></article>
       <button id="btn-top" title="Наверх">↑</button>
     </div>
+
+    <!-- Индикатор загрузки / рендеринга (не блокирует документ) -->
+    <div id="loading" hidden></div>
 
     <!-- Исходный текст (split view) -->
     <div id="source-scroll" hidden>

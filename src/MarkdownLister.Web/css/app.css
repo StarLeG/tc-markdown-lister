@@ -232,6 +232,52 @@ mark.search-hit.current {
 #btn-top.visible { opacity: 1; pointer-events: auto; }
 #btn-top:hover { background: var(--border); }
 
+/* ---------- Загрузка / большой файл ---------- */
+#loading {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  padding: 6px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  font-size: .85em;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+}
+#loading[hidden] { display: none; }
+
+#large-banner {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-alt);
+  color: var(--fg-muted);
+  font-family: var(--font-ui);
+  font-size: .85em;
+}
+#large-banner[hidden] { display: none; }
+#large-banner-text { flex: 1; }
+#large-banner-close {
+  border: none;
+  background: none;
+  color: var(--fg-muted);
+  font-size: 1.1em;
+  cursor: pointer;
+}
+#large-banner-close:hover { color: var(--fg); }
+
 /* ---------- Split view: исходник ---------- */
 #source-scroll {
   flex: 1;
@@ -446,9 +492,13 @@ pre.line-numbers .line-numbers-rows > span::before {
 /* YAML front matter — не показываем */
 .front-matter { display: none; }
 
+/* Фрагмент, отклонённый парсером Markdown (деградация до текста) */
+.markdown-body .md-plain { white-space: pre-wrap; }
+
 /* ---------- Печать (Ctrl+P, экспорт PDF) ---------- */
 @media print {
-  #sidebar, #search-bar, #status-bar, #btn-top, .copy-btn, #source-scroll { display: none !important; }
+  #sidebar, #search-bar, #status-bar, #btn-top, .copy-btn, #source-scroll,
+  #loading, #large-banner { display: none !important; }
   #content-scroll { overflow: visible !important; }
   body { background: #fff; color: #000; overflow: visible; }
   #content { max-width: none; padding: 0; }

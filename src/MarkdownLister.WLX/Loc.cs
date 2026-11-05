@@ -85,6 +85,8 @@ namespace MarkdownLister.WLX
                 "Подробности: {0}",
             ["Err.FileNotFound"] = "Файл не найден: ",
             ["Err.LoadFile"] = "Ошибка загрузки файла: ",
+            ["Err.FileTooBig"] =
+                "Файл слишком большой для просмотра: {0:F1} МБ (максимум — {1} МБ).",
             ["Err.Navigate"] = "Ошибка перехода по ссылке: ",
             ["Err.Print"] = "Не удалось открыть диалог печати: ",
             ["Err.PdfFailed"] = "Не удалось экспортировать PDF.",
@@ -181,6 +183,8 @@ namespace MarkdownLister.WLX
                 "Details: {0}",
             ["Err.FileNotFound"] = "File not found: ",
             ["Err.LoadFile"] = "Error loading file: ",
+            ["Err.FileTooBig"] =
+                "The file is too large to view: {0:F1} MB (limit is {1} MB).",
             ["Err.Navigate"] = "Error following link: ",
             ["Err.Print"] = "Could not open the print dialog: ",
             ["Err.PdfFailed"] = "Could not export PDF.",

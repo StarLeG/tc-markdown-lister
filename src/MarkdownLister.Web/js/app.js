@@ -17,6 +17,10 @@
     menuOpen: false,     // контекстное меню хоста (WinForms) сейчас показано
     lang: null,          // язык интерфейса: 'ru' | 'en' (из настроек хоста)
     stats: null,         // последние значения статус-строки (для смены языка)
+    large: false,        // большой документ: рендеринг чанками, без тяжёлых украшений
+    imageBase: '',       // базовый URL локальных картинок (виртуальный хост)
+    sourceLoaded: false, // исходник (split view) уже получен
+    sourceRequested: false, // запрос исходника уже отправлен хосту
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -46,6 +50,9 @@
       errorTitle: 'Ошибка',
       unknownError: 'Неизвестная ошибка',
       scriptLoadError: 'Не удалось загрузить ',
+      loading: 'Загрузка документа…',
+      largeBanner: 'Большой файл ({n} МБ): подсветка кода, диаграммы, формулы и номера строк отключены для производительности.',
+      hideBanner: 'Скрыть',
     },
     en: {
       sidebarTitle: 'Contents',
@@ -65,6 +72,9 @@
       errorTitle: 'Error',
       unknownError: 'Unknown error',
       scriptLoadError: 'Failed to load ',
+      loading: 'Loading document…',
+      largeBanner: 'Large file ({n} MB): syntax highlighting, diagrams, formulas and line numbers are disabled for performance.',
+      hideBanner: 'Hide',
     },
   };
 
@@ -91,8 +101,26 @@
 
   function handleHostMessage(msg) {
     switch (msg.type) {
+      case 'loading':
+        setLoading(null);
+        break;
       case 'load':
         renderDocument(msg.html, msg.source, msg.headings, msg.settings, msg.stats, msg.imageBase);
+        break;
+      case 'load-begin':
+        beginLargeDocument(msg);
+        break;
+      case 'load-chunk':
+        appendChunk(msg);
+        break;
+      case 'load-end':
+        endLargeDocument();
+        break;
+      case 'source-chunk':
+        appendSourceChunk(msg.text);
+        break;
+      case 'source-end':
+        state.sourceLoaded = true;
         break;
       case 'settings':
         applySettings(msg.settings);
@@ -139,21 +167,13 @@
     state.source = source || '';
     state.headings = headings || [];
     state.settings = settings || {};
+    state.large = false;
+    state.imageBase = imageBase || '';
+    state.sourceLoaded = !!source;
+    state.sourceRequested = false;
 
-    // Санитизация через DOMPurify (защита от встроенного враждебного HTML)
-    if (window.DOMPurify) {
-      content.innerHTML = DOMPurify.sanitize(state.html, {
-        ADD_ATTR: ['target', 'rel', 'class', 'id'],
-        ADD_TAGS: ['input'],            // чекбоксы списков задач
-        FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form'],
-      });
-    } else {
-      content.innerHTML = state.html;
-    }
-
-    // Локальные картинки документа: относительные пути раздаются
-    // виртуальным хостом media.markdownlister (папка документа)
-    rewriteImageUrls(imageBase);
+    content.innerHTML = '';
+    appendHtmlFragment(state.html);
 
     sourceText.textContent = state.source;
     applySettings(state.settings);
@@ -164,19 +184,111 @@
     updateStats(stats);
     contentScroll.scrollTop = 0;
     clearSearch();
+    hideLoading();
+    hideLargeBanner();
+  }
+
+  // ---------- Большой документ: постепенный рендеринг чанками ----------
+  function beginLargeDocument(msg) {
+    state.html = '';
+    state.source = '';
+    state.headings = msg.headings || [];
+    state.settings = msg.settings || {};
+    state.large = true;
+    state.imageBase = msg.imageBase || '';
+    state.sourceLoaded = false;
+    state.sourceRequested = false;
+
+    content.innerHTML = '';
+    sourceText.textContent = '';
+    applySettings(state.settings);
+    buildToc();
+    updateStats(msg.stats);
+    contentScroll.scrollTop = 0;
+    clearSearch();
+    showLargeBanner(msg.size || 0);
+    setLoading(0);
+  }
+
+  function appendChunk(msg) {
+    appendHtmlFragment(msg.html);
+    if (typeof msg.percent === 'number') setLoading(msg.percent);
+  }
+
+  function endLargeDocument() {
+    hideLoading();
+    updateTopButton();
+  }
+
+  // Добавляет очередной кусок HTML в документ: санитизация (DOMPurify) и
+  // переписывание путей картинок выполняются по чанку, а не по всему документу.
+  function appendHtmlFragment(html) {
+    if (!html) return;
+    const tpl = document.createElement('template');
+    tpl.innerHTML = sanitizeHtml(html);
+    rewriteImageUrlsIn(tpl.content);
+    content.appendChild(tpl.content);
+  }
+
+  // Санитизация через DOMPurify (защита от встроенного враждебного HTML)
+  function sanitizeHtml(html) {
+    if (!window.DOMPurify) return html;
+    return DOMPurify.sanitize(html, {
+      ADD_ATTR: ['target', 'rel', 'class', 'id'],
+      ADD_TAGS: ['input'],            // чекбоксы списков задач
+      FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form'],
+    });
   }
 
   // Переписывает относительные пути картинок на виртуальный хост папки
-  // документа (imageBase). Абсолютные URL, data: и якоря не трогаем.
-  function rewriteImageUrls(imageBase) {
-    if (!imageBase) return;
-    content.querySelectorAll('img').forEach((img) => {
+  // документа (state.imageBase). Абсолютные URL, data: и якоря не трогаем.
+  function rewriteImageUrlsIn(root) {
+    if (!state.imageBase) return;
+    root.querySelectorAll('img').forEach((img) => {
       const src = img.getAttribute('src') || '';
       if (!src || /^(https?:|data:|blob:|\/\/|#)/i.test(src)) return;
       // Абсолютные пути файловой системы не отдаются через хост папки документа
       if (/^([a-z]:)?[/\\]/i.test(src)) return;
-      img.src = imageBase + encodeURI(src.replace(/\\/g, '/'));
+      img.src = state.imageBase + encodeURI(src.replace(/\\/g, '/'));
     });
+  }
+
+  // ---------- Индикатор загрузки / предупреждение о большом файле ----------
+  function setLoading(percent) {
+    const el = $('#loading');
+    el.hidden = false;
+    el.textContent = (typeof percent === 'number')
+      ? T('loading') + ' ' + percent + '%'
+      : T('loading');
+  }
+
+  function hideLoading() {
+    $('#loading').hidden = true;
+  }
+
+  function showLargeBanner(sizeBytes) {
+    const banner = $('#large-banner');
+    const mb = Math.max(1, Math.round(sizeBytes / 1048576));
+    $('#large-banner-text').textContent = T('largeBanner').replace('{n}', mb);
+    $('#large-banner-close').title = T('hideBanner');
+    banner.hidden = false;
+  }
+
+  function hideLargeBanner() {
+    $('#large-banner').hidden = true;
+  }
+
+  // ---------- Ленивый исходник для split view (большие документы) ----------
+  // Полный исходник в DOM не дублируется: хост стримит его чанками по запросу,
+  // только когда пользователь включил split view.
+  function ensureSource() {
+    if (!state.large || state.sourceLoaded || state.sourceRequested) return;
+    state.sourceRequested = true;
+    post({ type: 'need-source' });
+  }
+
+  function appendSourceChunk(text) {
+    if (text) sourceText.appendChild(document.createTextNode(text));
   }
 
   // ---------- Настройки / темы / зум ----------
@@ -191,6 +303,7 @@
     sourceScroll.hidden = !s.splitView;
     document.body.classList.toggle('no-line-numbers', s.showLineNumbers === false);
     if (s.codeTheme) setCodeTheme(s.codeTheme);
+    if (s.splitView) ensureSource();
   }
 
   // Применяет язык интерфейса: статические подписи, кнопки копирования, статус-строка.
@@ -414,7 +527,10 @@
     sourceScroll.hidden = !hidden;
     state.settings.splitView = hidden;
     post({ type: 'settings-changed', key: 'splitView', value: hidden });
-    if (hidden) syncScroll(contentScroll, sourceScroll);
+    if (hidden) {
+      ensureSource();
+      syncScroll(contentScroll, sourceScroll);
+    }
   }
 
   function syncScroll(from, to) {
@@ -641,6 +757,8 @@
 
   // ---------- Ошибка ----------
   function showError(text) {
+    hideLoading();
+    hideLargeBanner();
     content.innerHTML = '<div style="padding:2em;text-align:center;color:#c0392b;">' +
       '<h2>' + T('errorTitle') + '</h2><p></p></div>';
     content.querySelector('p').textContent = text || T('unknownError');
@@ -699,6 +817,7 @@
   $('#search-close').addEventListener('click', closeSearch);
   $('#btn-top').addEventListener('click', () => contentScroll.scrollTo({ top: 0, behavior: 'smooth' }));
   $('#btn-close-sidebar').addEventListener('click', toggleSidebar);
+  $('#large-banner-close').addEventListener('click', hideLargeBanner);
 
   // Внутренние ссылки документа (other.md#section) — передаём хосту
   content.addEventListener('click', (e) => {

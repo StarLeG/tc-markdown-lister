@@ -7,6 +7,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
@@ -48,10 +49,31 @@ namespace MarkdownLister.WLX
         /// <summary>Страница template.html уже загружена (навигация выполнена).</summary>
         private bool _pageNavigated;
 
-        private string _pendingHtml;
-        private string _pendingSource;
-        private List<Heading> _pendingHeadings;
-        private DocumentStats _pendingStats;
+        /// <summary>Документ, ожидающий отправки в страницу (после готовности WebView2).</summary>
+        private PendingDocument _pendingDoc;
+
+        /// <summary>Отмена текущей загрузки (новый файл / закрытие окна).</summary>
+        private CancellationTokenSource _loadCts;
+
+        /// <summary>Поколение потоковой отправки: растёт при новой загрузке, гасит старые стримы.</summary>
+        private int _streamId;
+
+        /// <summary>Подготовленный к показу документ.</summary>
+        private sealed class PendingDocument
+        {
+            /// <summary>Декодированный текст Markdown.</summary>
+            public string Text;
+            /// <summary>Отрендеренный HTML (только для небольших документов).</summary>
+            public string Html;
+            /// <summary>Заголовки для оглавления.</summary>
+            public List<Heading> Headings;
+            /// <summary>Статистика документа.</summary>
+            public DocumentStats Stats;
+            /// <summary>Размер файла в байтах (для предупреждения о большом файле).</summary>
+            public long FileSizeBytes;
+            /// <summary>Большой документ: рендерить и отправлять чанками.</summary>
+            public bool Large;
+        }
 
         private ToolStripMenuItem _themeSystem, _themeLight, _themeDark;
         private ToolStripMenuItem _langAuto, _langRu, _langEn;
@@ -162,9 +184,20 @@ namespace MarkdownLister.WLX
         // Загрузка документа
         // ---------------------------------------------------------------
 
-        /// <summary>Читает Markdown-файл и отправляет его в страницу.</summary>
+        /// <summary>Жёсткий предел размера файла, МБ (64-битный процесс).</summary>
+        private const long MaxFileMb64 = 1024;
+
+        /// <summary>Жёсткий предел размера файла, МБ (32-битный процесс: строка UTF-16 занимает ×2).</summary>
+        private const long MaxFileMb32 = 200;
+
+        /// <summary>
+        /// Читает Markdown-файл и отправляет его в страницу. Чтение, парсинг и
+        /// рендеринг выполняются вне UI-потока; большие файлы (от
+        /// <see cref="PluginSettings.LargeFileWarningMb"/>) отправляются чанками
+        /// с прогрессом — Lister не блокируется.
+        /// </summary>
         /// <param name="path">Путь к файлу.</param>
-        public void LoadFile(string path)
+        public async void LoadFile(string path)
         {
             try
             {
@@ -174,17 +207,56 @@ namespace MarkdownLister.WLX
                     return;
                 }
 
-                byte[] bytes = File.ReadAllBytes(path);
-                string text = EncodingDetector.Decode(bytes, out _);
+                var fi = new FileInfo(path);
+                long maxMb = Environment.Is64BitProcess ? MaxFileMb64 : MaxFileMb32;
+                if (fi.Length > maxMb * 1024L * 1024L)
+                {
+                    SendError(Loc.T("Err.FileTooBig", fi.Length / 1048576.0, maxMb));
+                    return;
+                }
+
+                // Новая загрузка отменяет предыдущую (в т.ч. идущий стрим чанков)
+                _loadCts?.Cancel();
+                _loadCts = new CancellationTokenSource();
+                CancellationToken token = _loadCts.Token;
+                _streamId++; // старые стримы гаснут по несовпадению поколения
+
+                bool large = fi.Length >= (long)(_settings.LargeFileWarningMb) * 1024L * 1024L;
 
                 _currentFile = path;
                 MapDocumentMedia(path); // до загрузки страницы — без перезагрузки
-                _pendingSource = text;
-                _pendingHtml = _renderer.ToHtml(text);
-                _pendingHeadings = _renderer.ExtractHeadings(text);
-                _pendingStats = DocumentStats.Compute(text);
+                Send(new Dictionary<string, object> { ["type"] = "loading" });
 
+                // Фоновая часть: чтение, декодирование, статистика, рендеринг
+                PendingDocument doc = await Task.Run(() =>
+                {
+                    byte[] bytes = File.ReadAllBytes(path);
+                    var d = new PendingDocument
+                    {
+                        Text = EncodingDetector.Decode(bytes, out _),
+                        FileSizeBytes = fi.Length,
+                        Large = large,
+                    };
+                    d.Headings = _renderer.ExtractHeadings(d.Text);
+                    d.Stats = DocumentStats.Compute(d.Text);
+                    if (!d.Large)
+                    {
+                        d.Html = _renderer.ToHtmlSafe(d.Text, out bool degraded);
+                        if (degraded)
+                            Logger.Info("LoadFile: парсер отказался рендерить документ — показан текстом");
+                    }
+                    return d;
+                }, token);
+
+                if (token.IsCancellationRequested || IsDisposed)
+                    return;
+
+                _pendingDoc = doc;
                 PushDocument();
+            }
+            catch (OperationCanceledException)
+            {
+                // Загрузка отменена (новый файл / закрытие окна) — молча выходим.
             }
             catch (Exception ex)
             {
@@ -195,7 +267,7 @@ namespace MarkdownLister.WLX
 
         private void PushDocument()
         {
-            if (!_ready || _pendingHtml == null)
+            if (!_ready || _pendingDoc == null)
                 return;
 
             // Папка документа → виртуальный хост: относительные картинки
@@ -208,17 +280,129 @@ namespace MarkdownLister.WLX
                 return;
             }
 
+            if (_pendingDoc.Large)
+            {
+                StreamLargeDocument();
+                return;
+            }
+
             var msg = new Dictionary<string, object>
             {
                 ["type"] = "load",
-                ["html"] = _pendingHtml,
-                ["source"] = _pendingSource,
-                ["headings"] = HeadingsToDto(_pendingHeadings),
+                ["html"] = _pendingDoc.Html,
+                ["source"] = _pendingDoc.Text,
+                ["headings"] = HeadingsToDto(_pendingDoc.Headings),
                 ["settings"] = SettingsToDto(),
-                ["stats"] = StatsToDto(_pendingStats),
+                ["stats"] = StatsToDto(_pendingDoc.Stats),
                 ["imageBase"] = "https://" + MediaHost + "/",
             };
             Send(msg);
+        }
+
+        /// <summary>
+        /// Постепенно рендерит и отправляет большой документ чанками:
+        /// load-begin → load-chunk (с процентами) → load-end. UI-поток свободен
+        /// между чанками, страница показывает текст по мере готовности.
+        /// </summary>
+        private async void StreamLargeDocument()
+        {
+            int id = ++_streamId;
+            PendingDocument doc = _pendingDoc;
+            CancellationToken token = _loadCts?.Token ?? CancellationToken.None;
+
+            try
+            {
+                Send(new Dictionary<string, object>
+                {
+                    ["type"] = "load-begin",
+                    ["headings"] = HeadingsToDto(doc.Headings),
+                    ["settings"] = SettingsToDto(),
+                    ["stats"] = StatsToDto(doc.Stats),
+                    ["imageBase"] = "https://" + MediaHost + "/",
+                    ["size"] = doc.FileSizeBytes,
+                });
+
+                long total = doc.Text.Length;
+                long processed = 0;
+                bool degradedLogged = false;
+                foreach (string chunk in MarkdownChunker.Split(doc.Text))
+                {
+                    token.ThrowIfCancellationRequested();
+                    if (id != _streamId || IsDisposed)
+                        return;
+
+                    bool chunkDegraded = false;
+                    string html = await Task.Run(() =>
+                    {
+                        string h = _renderer.ToHtmlSafe(chunk, out bool degraded);
+                        chunkDegraded = degraded;
+                        return h;
+                    }, token);
+                    token.ThrowIfCancellationRequested();
+                    if (id != _streamId || IsDisposed)
+                        return;
+
+                    if (chunkDegraded && !degradedLogged)
+                    {
+                        degradedLogged = true;
+                        Logger.Info("StreamLargeDocument: часть чанков показана текстом (отказ парсера)");
+                    }
+
+                    processed += chunk.Length;
+                    Send(new Dictionary<string, object>
+                    {
+                        ["type"] = "load-chunk",
+                        ["html"] = html,
+                        ["percent"] = total > 0 ? (int)(processed * 100L / total) : 100,
+                    });
+                }
+
+                if (id != _streamId)
+                    return;
+                Send(new Dictionary<string, object> { ["type"] = "load-end" });
+            }
+            catch (OperationCanceledException)
+            {
+                // Загрузка отменена (новый файл / закрытие окна) — молча выходим.
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("StreamLargeDocument", ex);
+                if (id == _streamId)
+                    SendError(Loc.T("Err.LoadFile") + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Стримит исходный Markdown в страницу по запросу (need-source) —
+        /// только для больших документов: split view включается не всегда,
+        /// и держать второй копией 100 МБ в DOM незачем.
+        /// </summary>
+        private async void SendSourceStream()
+        {
+            int id = _streamId;
+            PendingDocument doc = _pendingDoc;
+            if (doc == null || !doc.Large)
+                return;
+
+            try
+            {
+                foreach (string chunk in MarkdownChunker.Split(doc.Text, wrapFences: false))
+                {
+                    if (id != _streamId || IsDisposed)
+                        return;
+                    Send(new Dictionary<string, object> { ["type"] = "source-chunk", ["text"] = chunk });
+                    await Task.Yield(); // отдать UI-поток между сериализациями чанков
+                }
+
+                if (id != _streamId)
+                    return;
+                Send(new Dictionary<string, object> { ["type"] = "source-end" });
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("SendSourceStream", ex);
+            }
         }
 
         /// <summary>Раздаёт папку документа через виртуальный хост для локальных картинок.</summary>
@@ -336,6 +520,11 @@ namespace MarkdownLister.WLX
                     case "ready":
                         _ready = true;
                         PushDocument();
+                        break;
+
+                    case "need-source":
+                        // Страница включила split view — запрос исходника большого документа
+                        SendSourceStream();
                         break;
 
                     case "settings-changed":
@@ -911,6 +1100,7 @@ namespace MarkdownLister.WLX
             {
                 try
                 {
+                    _loadCts?.Cancel();
                     if (_webView != null)
                     {
                         if (_webView.CoreWebView2 != null)

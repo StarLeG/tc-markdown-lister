@@ -37,6 +37,39 @@ namespace MarkdownLister.Core
             return Markdown.ToHtml(markdown, _pipeline);
         }
 
+        /// <summary>
+        /// Преобразует текст Markdown в HTML с деградацией при отказе парсера:
+        /// патологический контент (например, тысячи конструкций «[текст][метка]»
+        /// в одном абзаце) превышает лимит глубины вложенности Markdig — такой
+        /// фрагмент показывается экранированным текстом, чтобы просмотр не падал.
+        /// </summary>
+        /// <param name="markdown">Исходный текст Markdown.</param>
+        /// <param name="degraded">true — парсер отказался рендерить, отдан текст.</param>
+        /// <returns>HTML-фрагмент (без обёртки &lt;html&gt;).</returns>
+        public string ToHtmlSafe(string markdown, out bool degraded)
+        {
+            degraded = false;
+            if (string.IsNullOrEmpty(markdown))
+                return string.Empty;
+
+            try
+            {
+                return Markdown.ToHtml(markdown, _pipeline);
+            }
+            catch
+            {
+                degraded = true;
+                return ToPlainHtml(markdown);
+            }
+        }
+
+        /// <summary>Экранирует текст и оборачивает его в блок с сохранением переносов строк.</summary>
+        private static string ToPlainHtml(string text)
+        {
+            return "<p class=\"md-plain\">" +
+                System.Net.WebUtility.HtmlEncode(text) + "</p>";
+        }
+
         /// <summary>Извлекает заголовки документа для построения оглавления.</summary>
         /// <param name="markdown">Исходный текст Markdown.</param>
         /// <returns>Список заголовков с уровнями и якорями.</returns>
@@ -47,40 +80,61 @@ namespace MarkdownLister.Core
                 return result;
 
             var idCounts = new System.Collections.Generic.Dictionary<string, int>();
-            var lines = markdown.Replace("\r\n", "\n").Split('\n');
-            bool inFence = false;
-            string fenceMarker = null;
 
-            foreach (var line in lines)
+            // Построчный перебор по индексам — без копий текста (Replace + Split
+            // на файле в 100 МБ создавали бы строки по 200 МБ в LOH).
+            bool inFence = false;
+            char fenceChar = '\0';
+            int pos = 0;
+            while (pos < markdown.Length)
             {
+                int lineStart = pos;
+                int nl = markdown.IndexOf('\n', pos);
+                int lineEnd = nl >= 0 ? nl : markdown.Length;
+                int contentEnd = lineEnd > lineStart && markdown[lineEnd - 1] == '\r'
+                    ? lineEnd - 1 : lineEnd;
+                pos = nl >= 0 ? nl + 1 : markdown.Length;
+
+                int first = lineStart;
+                while (first < contentEnd && (markdown[first] == ' ' || markdown[first] == '\t'))
+                    first++;
+
                 // Пропускаем содержимое блоков кода (``` или ~~~)
-                var trimmed = line.TrimStart();
-                if (trimmed.StartsWith("```") || trimmed.StartsWith("~~~"))
+                if (first + 3 <= contentEnd)
                 {
-                    if (!inFence)
+                    char c = markdown[first];
+                    if ((c == '`' || c == '~') &&
+                        markdown[first + 1] == c && markdown[first + 2] == c)
                     {
-                        inFence = true;
-                        fenceMarker = trimmed.Substring(0, 3);
+                        if (!inFence)
+                        {
+                            inFence = true;
+                            fenceChar = c;
+                        }
+                        else if (c == fenceChar)
+                        {
+                            inFence = false;
+                            fenceChar = '\0';
+                        }
+                        continue;
                     }
-                    else if (trimmed.StartsWith(fenceMarker))
-                    {
-                        inFence = false;
-                        fenceMarker = null;
-                    }
-                    continue;
                 }
                 if (inFence)
                     continue;
 
-                if (line.Length > 0 && line[0] == '#')
+                if (lineStart < contentEnd && markdown[lineStart] == '#')
                 {
                     int level = 0;
-                    while (level < line.Length && line[level] == '#')
+                    int i = lineStart;
+                    while (i < contentEnd && markdown[i] == '#')
+                    {
                         level++;
-                    if (level > 6 || (level < line.Length && line[level] != ' '))
+                        i++;
+                    }
+                    if (level > 6 || (i < contentEnd && markdown[i] != ' '))
                         continue;
 
-                    var text = line.Substring(level).Trim();
+                    var text = markdown.Substring(i, contentEnd - i).Trim();
                     // Убираем закрывающие решётки в стиле ATX: "## Заголовок ##"
                     text = text.TrimEnd('#').TrimEnd();
                     if (text.Length == 0)
