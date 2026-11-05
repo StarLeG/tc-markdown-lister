@@ -53,7 +53,7 @@ fully local, no telemetry.
 | ✂️ | **Split view** (`Ctrl+M`) — source next to the rendering, with scroll sync |
 | 🎨 | **Appearance** — System / Light / Dark themes + 6 JSON presets; highlight.js code coloring (5 themes), reading column width 600–2000 px, zoom 50–200 % |
 | 📊 | **Diagrams and formulas** — Mermaid.js and KaTeX out of the box |
-| 🧭 | **Navigation** — table of contents (TOC) in the sidebar, in-document search |
+| 🧭 | **Navigation** — table of contents (TOC) in the sidebar, in-document search (including code blocks) |
 | 📚 | **Large files** — async loading and progressive chunked rendering (verified with a 100 MB file), progress indicator, warning and lightweight mode from 5 MB |
 | 📤 | **Export** — PDF, print, standalone HTML |
 | ⚙️ | **Reliability** — encoding detection (UTF-8/UTF-16/ANSI via UTF.Unknown), protection against huge files, error logging, INI settings, fully local with no telemetry |

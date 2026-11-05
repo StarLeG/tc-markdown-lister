@@ -462,41 +462,110 @@
     updateSearchCount();
   }
 
+  // Служебный текст, который не является содержимым документа: кнопки
+  // «Копировать», ряды номеров строк, скрытая MathML-копия формул KaTeX.
+  const SEARCH_SKIP = 'button, .line-numbers-rows, .katex-mathml, a.anchor';
+  // Блочные контейнеры: совпадение не пересекает их границу (абзац, ячейку,
+  // заголовок), но проходит через инлайн-разметку — токены подсветки кода,
+  // <code>, <strong> и т. п. Именно это нужно при поиске внутри блоков кода.
+  const SEARCH_BLOCK = 'p, pre, li, h1, h2, h3, h4, h5, h6, td, th, dt, dd, blockquote, figcaption, div, section, article';
+
+  // Раскладывает текст содержимого по блокам: блок -> [{node|null, start, end}].
+  // node === null — фантомный перевод строки (<br>); через него совпадение не
+  // проходит, т. к. строка запроса не содержит '\n'.
+  function collectSearchSegments() {
+    const blocks = [];
+    const stack = [{ segs: [], len: 0 }];
+    blocks.push(stack[0]);
+    const push = (node, text) => {
+      const cur = stack[stack.length - 1];
+      cur.segs.push({ node: node, start: cur.len, end: cur.len + text.length });
+      cur.len += text.length;
+    };
+    (function walk(el) {
+      for (let child = el.firstChild; child; child = child.nextSibling) {
+        if (child.nodeType === Node.TEXT_NODE) {
+          if (child.nodeValue) push(child, child.nodeValue);
+        } else if (child.nodeType === Node.ELEMENT_NODE) {
+          const tag = child.tagName;
+          if (tag === 'SCRIPT' || tag === 'STYLE' || child.matches(SEARCH_SKIP)) continue;
+          if (tag === 'BR') { push(null, '\n'); continue; }
+          const nested = child.matches(SEARCH_BLOCK);
+          if (nested) {
+            const block = { segs: [], len: 0 };
+            blocks.push(block);
+            stack.push(block);
+          }
+          walk(child);
+          if (nested) stack.pop();
+        }
+      }
+    })(content);
+    return blocks;
+  }
+
   function runSearch() {
     clearSearch();
     const q = $('#search-input').value;
     if (!q) return;
 
     const needle = q.toLowerCase();
-    // Обход текстовых узлов (без <script>/<style> — их уже нет после санитизации)
-    const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, null);
-    const targets = [];
-    let node;
-    while ((node = walker.nextNode())) {
-      if (node.nodeValue && node.nodeValue.toLowerCase().includes(needle)) {
-        targets.push(node);
-      }
-    }
+    const hits = []; // каждый hit — массив mark-элементов одного совпадения
 
-    targets.forEach((textNode) => {
-      const text = textNode.nodeValue;
-      const lower = text.toLowerCase();
-      const frag = document.createDocumentFragment();
+    collectSearchSegments().forEach((block) => {
+      if (!block.len) return;
+      let concat = '';
+      block.segs.forEach((s) => { concat += s.node ? s.node.nodeValue : '\n'; });
+      const lower = concat.toLowerCase();
+
+      const matches = [];
       let pos = 0;
       let idx;
       while ((idx = lower.indexOf(needle, pos)) !== -1) {
-        if (idx > pos) frag.appendChild(document.createTextNode(text.substring(pos, idx)));
-        const mark = document.createElement('mark');
-        mark.className = 'search-hit';
-        mark.textContent = text.substr(idx, needle.length);
-        frag.appendChild(mark);
+        matches.push([idx, idx + needle.length]);
         pos = idx + needle.length;
       }
-      if (pos < text.length) frag.appendChild(document.createTextNode(text.substring(pos)));
-      textNode.parentNode.replaceChild(frag, textNode);
+      if (!matches.length) return;
+
+      // Диапазоны совпадений распределяем по текстовым узлам блока
+      const perNode = new Map();
+      matches.forEach((m, mi) => {
+        block.segs.forEach((s) => {
+          if (!s.node) return;
+          const from = Math.max(m[0], s.start);
+          const to = Math.min(m[1], s.end);
+          if (from < to) {
+            let arr = perNode.get(s.node);
+            if (!arr) { arr = []; perNode.set(s.node, arr); }
+            arr.push({ start: from - s.start, end: to - s.start, mi: mi });
+          }
+        });
+      });
+
+      // Каждый узел переписывается один раз — сразу со всеми своими кусками
+      const blockHits = matches.map(() => []);
+      perNode.forEach((ranges, node) => {
+        ranges.sort((a, b) => a.start - b.start);
+        const text = node.nodeValue;
+        const frag = document.createDocumentFragment();
+        let cursor = 0;
+        ranges.forEach((r) => {
+          if (r.start > cursor) frag.appendChild(document.createTextNode(text.substring(cursor, r.start)));
+          const mark = document.createElement('mark');
+          mark.className = 'search-hit';
+          mark.textContent = text.substring(r.start, r.end);
+          frag.appendChild(mark);
+          blockHits[r.mi].push(mark);
+          cursor = r.end;
+        });
+        if (cursor < text.length) frag.appendChild(document.createTextNode(text.substring(cursor)));
+        node.parentNode.replaceChild(frag, node);
+      });
+
+      blockHits.forEach((marks) => { if (marks.length) hits.push(marks); });
     });
 
-    state.searchHits = Array.from(content.querySelectorAll('mark.search-hit'));
+    state.searchHits = hits;
     state.searchIndex = state.searchHits.length ? 0 : -1;
     highlightCurrent();
     updateSearchCount();
@@ -510,9 +579,14 @@
   }
 
   function highlightCurrent() {
-    state.searchHits.forEach((m, i) => m.classList.toggle('current', i === state.searchIndex));
+    // Одно совпадение может быть несколькими mark-элементами (когда текст
+    // разбит инлайн-разметкой) — подсвечиваем и проматываем всю группу.
+    state.searchHits.forEach((marks, i) => {
+      const on = i === state.searchIndex;
+      marks.forEach((m) => m.classList.toggle('current', on));
+    });
     const cur = state.searchHits[state.searchIndex];
-    if (cur) cur.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (cur && cur[0]) cur[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   function updateSearchCount() {
