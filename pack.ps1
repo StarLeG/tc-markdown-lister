@@ -2,7 +2,7 @@
 #
 # Archive layout (same as release v0.1.4):
 #   MarkdownLister\          - plugin files (x86 .wlx + x64 .wlx64 merged),
-#                              install.ps1 / uninstall.ps1 / LICENSE / README.md / README.en.md
+#                              install.ps1 / uninstall.ps1 / pluginst.inf / LICENSE / README.md / README.en.md
 #
 # Version is read from Directory.Build.props (single source of truth).
 # Run build.ps1 first: the archive is assembled from dist\x86 and dist\x64.
@@ -46,6 +46,7 @@ Copy-Item (Join-Path $root 'dist\x86\MarkdownLister.wlx') $pkg -Force
 
 Copy-Item (Join-Path $root 'src\MarkdownLister.Setup\install.ps1') $pkg -Force
 Copy-Item (Join-Path $root 'src\MarkdownLister.Setup\uninstall.ps1') $pkg -Force
+Copy-Item (Join-Path $root 'src\MarkdownLister.Setup\pluginst.inf') $pkg -Force
 Copy-Item (Join-Path $root 'LICENSE') $pkg -Force
 Copy-Item (Join-Path $root 'README.md') $pkg -Force
 Copy-Item (Join-Path $root 'README.en.md') $pkg -Force
