@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <!-- Версия проекта (SemVer) — единственное место, не хардкодить в коде -->
-    <Version>0.3.0</Version>
+    <Version>0.4.0</Version>
     <Company>Старинский Олег Григорьевич</Company>
     <Product>MarkdownLister</Product>
     <Copyright>Copyright © 2026 Старинский Олег Григорьевич</Copyright>
