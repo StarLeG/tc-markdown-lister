@@ -5,6 +5,8 @@
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-05
+
 ### Исправлено
 
 - Поиск по документу находит совпадения внутри блоков кода — в том числе
@@ -101,6 +103,7 @@ GitHub по **F3** и в Quick View (Ctrl+Q).
 - Настройки в `MarkdownLister.WLX.ini` рядом с плагином; без телеметрии
   и сетевых запросов.
 
+[0.4.1]: https://github.com/StarLeG/tc-markdown-lister/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/StarLeG/tc-markdown-lister/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/StarLeG/tc-markdown-lister/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/StarLeG/tc-markdown-lister/compare/v0.2.0...v0.2.1
