@@ -5,8 +5,9 @@
 #   2) собирает комплект плагина из dist\x64 (общие файлы) + dist\x86\MarkdownLister.wlx
 #      (TC 32-битный берёт .wlx, 64-битный — .wlx64 рядом с ним);
 #   3) копирует комплект в <TC>\Plugins\wlx\MarkdownLister\;
-#   4) регистрирует плагин в wincmd.ini ([ListerPlugins]) с detect-строкой
-#      для расширений MD/MARKDOWN/MKD/MDOWN/MDX.
+#   4) регистрирует плагин в wincmd.ini: [ListerPlugins] — запись с detect-строкой
+#      для расширений MD/MARKDOWN/MKD/MKDN/MDOWN/MDTEXT/MDX, [ListerPlugins64] —
+#      компактное зеркало N=1 (TC берёт MarkdownLister.wlx64 рядом с .wlx).
 #
 # После установки перезапустите Total Commander.
 # Автор: Старинский Олег Григорьевич; email: info@electroman.by; телеграм: @ElectroManBY.
@@ -18,7 +19,7 @@ param(
     # Путь к wincmd.ini (иначе — поиск автоматический)
     [string]$IniPath,
 
-    # Каталог с дистрибутивом dist\ (по умолчанию ..\..\dist от этого скрипта)
+    # Каталог с дистрибутивом dist\ (по умолчанию — папка сборки dist\, два уровня выше)
     [string]$SourceDir,
 
     # Только скопировать файлы, не трогая wincmd.ini
@@ -27,8 +28,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $setupDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-if (-not $SourceDir) { $SourceDir = Join-Path $setupDir '..\..\dist' }
-$detect = '"EXT="MD" | EXT="MARKDOWN" | EXT="MKD" | EXT="MDOWN" | EXT="MDX""'
+if (-not $SourceDir) { $SourceDir = Join-Path $setupDir '..\..' }
+$detect = '"EXT="MD" | EXT="MARKDOWN" | EXT="MKD" | EXT="MKDN" | EXT="MDOWN" | EXT="MDTEXT" | EXT="MDX""'
 
 function Find-TotalCommander {
     if ($TotalCommanderDir) {
@@ -66,54 +67,82 @@ function Find-WincmdIni {
     throw 'wincmd.ini не найден. Укажите путь: -IniPath "C:\totalcmd\wincmd.ini"'
 }
 
-function Register-Plugin {
-    param([string]$Ini, [string]$PluginEntry, [string]$DetectString)
+# Идемпотентно переписывает секцию плагинов в wincmd.ini: прежние записи
+# MarkdownLister (вместе с N_detect) удаляются, новая — добавляется под номером
+# $ForceNumber, иначе — минимальным освободившимся либо первым свободным.
+# Номера из $DropNumbers удаляются независимо от значения записи (нужно для
+# компактных зеркал вида N=1 в [ListerPlugins64]). Прочие строки секции,
+# включая $checksum$, сохраняются.
+# Возвращает @{ Number = номер новой записи; Dropped = @(удалённые номера) }.
+function Register-PluginEntry {
+    param(
+        [Parameter(Mandatory = $true)][string]$Ini,
+        [Parameter(Mandatory = $true)][string]$SectionName,
+        [Parameter(Mandatory = $true)][string]$EntryValue,
+        [string]$DetectString = '',
+        [int[]]$DropNumbers = @(),
+        [int]$ForceNumber = -1
+    )
     $lines = if (Test-Path $Ini) { @(Get-Content $Ini) } else { @() }
 
-    # Собираем файл заново: прежние записи плагина (вместе с их _detect) удаляем
-    # для идемпотентности, новую — добавляем с первым свободным номером.
+    # Собираем файл заново: прежние записи плагина удаляем, новую — добавляем.
     $kept = New-Object System.Collections.Generic.List[string]
     $section = New-Object System.Collections.Generic.List[string]
     $inSection = $false
+    $sectionSeen = $false
+    $state = @{ Num = -1; Dropped = @() }
 
     $flush = {
-        if ($section.Count -eq 0 -and -not $script:sectionSeen) { return }
         $drop = @{}
         foreach ($s in $section) {
-            if ($s -match '^\s*(\d+)=') {
-                # Номер сохраняем в переменную: повторный -match перезаписал бы $Matches
+            if ($s -match '^\s*(\d+)=(.*)$') {
+                # Номер и значение сохраняем сразу: следующий -match перезаписал бы $Matches
                 $num = [int]$Matches[1]
-                if ($s -match 'MarkdownLister\.wlx') { $drop[[string]$num] = $true }
+                $val = $Matches[2]
+                if ($val -match 'MarkdownLister' -or
+                    $DropNumbers -contains $num -or $num -eq $ForceNumber) {
+                    $drop[$num] = $true
+                }
             }
         }
         $maxNum = -1
         foreach ($s in $section) {
-            if ($s -match '^\s*(\d+)=') {
+            if ($s -match '^\s*(\d+)=(.*)$') {
                 # Запись плагина (N=...) — удаляем, число сохраняем до следующих -match
                 $num = [int]$Matches[1]
-                if ($drop.ContainsKey([string]$num)) { continue }
+                if ($drop.ContainsKey($num)) { continue }
                 if ($num -gt $maxNum) { $maxNum = $num }
                 $kept.Add($s)
                 continue
             }
             if ($s -match '^\s*(\d+)_\w+=') {
                 # Спутанные строки (N_detect=...) удаляем вместе с записью
-                if ($drop.ContainsKey($Matches[1])) { continue }
+                if ($drop.ContainsKey([int]$Matches[1])) { continue }
             }
             $kept.Add($s)
         }
-        $num = $maxNum + 1
-        $kept.Add("$num=$PluginEntry")
-        $kept.Add("${num}_detect=$DetectString")
-        $script:newEntryNum = $num
+        if ($ForceNumber -ge 0) {
+            $num = $ForceNumber
+        }
+        elseif ($drop.Count -gt 0) {
+            # Идемпотентность: переиспользуем освободившийся номер плагина
+            $num = [int](($drop.Keys | Sort-Object | Select-Object -First 1))
+        }
+        else {
+            $num = $maxNum + 1
+        }
+        $kept.Add("$num=$EntryValue")
+        if ($DetectString) { $kept.Add("${num}_detect=$DetectString") }
+        $state.Num = $num
+        $state.Dropped = @($drop.Keys)
         $section.Clear()
     }
 
     foreach ($line in $lines) {
         if ($line -match '^\s*\[(.+)\]\s*$') {
             if ($inSection) { & $flush }
-            $inSection = ($Matches[1] -ieq 'ListerPlugins')
-            $script:sectionSeen = $inSection -or $script:sectionSeen
+            $inSection = ($Matches[1] -ieq $SectionName)
+            $sectionSeen = $inSection -or $sectionSeen
             $kept.Add($line)
             continue
         }
@@ -121,14 +150,15 @@ function Register-Plugin {
     }
     if ($inSection) { & $flush }
 
-    if (-not $script:sectionSeen) {
-        $kept.Add('[ListerPlugins]')
-        $kept.Add("0=$PluginEntry")
-        $kept.Add("0_detect=$DetectString")
-        $script:newEntryNum = 0
+    if (-not $sectionSeen) {
+        $kept.Add("[$SectionName]")
+        $kept.Add("0=$EntryValue")
+        if ($DetectString) { $kept.Add("0_detect=$DetectString") }
+        $state.Num = 0
+        $state.Dropped = @()
     }
     Set-Content -Path $Ini -Value $kept -Encoding Default
-    Write-Host "  Зарегистрирован в $Ini (запись $($script:newEntryNum))"
+    return @{ Number = $state.Num; Dropped = $state.Dropped }
 }
 
 # --- 1. Total Commander и INI ---
@@ -171,7 +201,15 @@ if ($NoRegister) {
 }
 else {
     $ini = Find-WincmdIni -TcDir $tcDir
-    Register-Plugin -Ini $ini -PluginEntry '%COMMANDER_PATH%\Plugins\wlx\MarkdownLister\MarkdownLister.wlx' -DetectString $detect
+    $reg = Register-PluginEntry -Ini $ini -SectionName 'ListerPlugins' `
+        -EntryValue '%COMMANDER_PATH%\Plugins\wlx\MarkdownLister\MarkdownLister.wlx' `
+        -DetectString $detect
+    Write-Host "  [ListerPlugins]: запись $($reg.Number)"
+
+    # 64-битный TC: компактное зеркало N=1 — берёт MarkdownLister.wlx64 рядом с .wlx
+    Register-PluginEntry -Ini $ini -SectionName 'ListerPlugins64' `
+        -EntryValue '1' -ForceNumber $reg.Number -DropNumbers $reg.Dropped | Out-Null
+    Write-Host "  [ListerPlugins64]: зеркало $($reg.Number)=1"
 }
 
 Write-Host 'Готово. Перезапустите Total Commander.' -ForegroundColor Green

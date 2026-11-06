@@ -36,7 +36,7 @@ namespace MarkdownLister.WLX
 
         private static readonly string[] MarkdownExtensions =
         {
-            ".md", ".markdown", ".mkd", ".mkdn", ".mdown", ".mdtext",
+            ".md", ".markdown", ".mkd", ".mkdn", ".mdown", ".mdtext", ".mdx",
         };
 
         static Plugin()
@@ -230,7 +230,7 @@ namespace MarkdownLister.WLX
         {
             try
             {
-                const string detect = "EXT=\"MD\" | EXT=\"MARKDOWN\" | EXT=\"MKD\" | EXT=\"MKDN\" | EXT=\"MDOWN\" | EXT=\"MDTEXT\"";
+                const string detect = "EXT=\"MD\" | EXT=\"MARKDOWN\" | EXT=\"MKD\" | EXT=\"MKDN\" | EXT=\"MDOWN\" | EXT=\"MDTEXT\" | EXT=\"MDX\"";
                 byte[] bytes = Encoding.ASCII.GetBytes(detect + "\0");
                 int n = Math.Min(bytes.Length, Math.Max(0, maxLen));
                 if (n > 0)

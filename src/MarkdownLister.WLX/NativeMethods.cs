@@ -74,15 +74,19 @@ namespace MarkdownLister.WLX
             public int Left, Top, Right, Bottom;
         }
 
-        /// <summary>Структура параметров по умолчанию из ListSetDefaultParams.</summary>
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        /// <summary>
+        /// Структура параметров по умолчанию из ListSetDefaultParams (WLX SDK, lister.h).
+        /// Раскладка: int size; int PluginInterfaceVersionLow; int PluginInterfaceVersionHigh;
+        /// char DefaultIniName[MAX_PATH] (ANSI, 260 символов) — путь к INI Total Commander.
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
         public struct ListDefaultParamStruct
         {
             public int size;
+            public int PluginInterfaceVersionLow;
+            public int PluginInterfaceVersionHigh;
             [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
             public string DefaultIniName;
-            public short PluginInterfaceVersionLow;
-            public short PluginInterfaceVersionHigh;
         }
     }
 }

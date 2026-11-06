@@ -124,46 +124,108 @@ namespace MarkdownLister.WLX
             }
         }
 
+        /// <summary>Число попыток инициализации WebView2 (транзиентные ошибки).</summary>
+        private const int WebViewMaxAttempts = 3;
+
         private async Task InitWebViewAsync()
         {
-            try
+            for (int attempt = 1; ; attempt++)
             {
-                string userData = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "MarkdownLister", "WebView2");
-                Directory.CreateDirectory(userData);
+                try
+                {
+                    string userData = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "MarkdownLister", "WebView2");
+                    Directory.CreateDirectory(userData);
 
-                var env = await CoreWebView2Environment.CreateAsync(null, userData,
-                    new CoreWebView2EnvironmentOptions());
+                    var env = await CoreWebView2Environment.CreateAsync(null, userData,
+                        new CoreWebView2EnvironmentOptions());
 
-                await _webView.EnsureCoreWebView2Async(env);
+                    await _webView.EnsureCoreWebView2Async(env);
 
-                CoreWebView2 core = _webView.CoreWebView2;
+                    CoreWebView2 core = _webView.CoreWebView2;
 
-                // Веб-ресурсы раздаются из папки web\ рядом с плагином
-                string webRoot = Path.Combine(Plugin.PluginDir ?? ".", "web");
-                core.SetVirtualHostNameToFolderMapping(VirtualHost, webRoot,
-                    CoreWebView2HostResourceAccessKind.Allow);
+                    // Веб-ресурсы раздаются из папки web\ рядом с плагином
+                    string webRoot = Path.Combine(Plugin.PluginDir ?? ".", "web");
+                    core.SetVirtualHostNameToFolderMapping(VirtualHost, webRoot,
+                        CoreWebView2HostResourceAccessKind.Allow);
 
-                core.Settings.AreDefaultContextMenusEnabled = false;
-                core.Settings.IsStatusBarEnabled = false;
-                core.Settings.AreDevToolsEnabled = false;
+                    core.Settings.AreDefaultContextMenusEnabled = false;
+                    core.Settings.IsStatusBarEnabled = false;
+                    core.Settings.AreDevToolsEnabled = false;
 
-                core.ContextMenuRequested += OnContextMenuRequested;
-                core.WebMessageReceived += OnWebMessageReceived;
+                    core.ContextMenuRequested += OnContextMenuRequested;
+                    core.WebMessageReceived += OnWebMessageReceived;
 
-                // Маппинг папки документа должен существовать ДО загрузки страницы:
-                // смена маппинга не применяется к уже загруженной странице (WebView2)
-                MapDocumentMedia(_currentFile);
+                    // Маппинг папки документа должен существовать ДО загрузки страницы:
+                    // смена маппинга не применяется к уже загруженной странице (WebView2)
+                    MapDocumentMedia(_currentFile);
 
-                core.Navigate($"https://{VirtualHost}/template.html");
-                _pageNavigated = true;
+                    core.Navigate($"https://{VirtualHost}/template.html");
+                    _pageNavigated = true;
+                    return;
+                }
+                catch (Exception ex) when (IsMissingWebView2Runtime(ex))
+                {
+                    // WebView2 Runtime не установлен — повторы бесполезны
+                    Logger.Error("InitWebView: WebView2 Runtime не найден", ex);
+                    ShowFallback(Loc.T("Err.WebView2Runtime"));
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error($"InitWebView (попытка {attempt}/{WebViewMaxAttempts})", ex);
+                    if (attempt >= WebViewMaxAttempts || !IsTransientWebViewError(ex) || IsDisposed)
+                    {
+                        ShowFallback(Loc.T("Err.WebView2", ex.Message));
+                        return;
+                    }
+
+                    await Task.Delay(500 * attempt);
+                    if (IsDisposed)
+                        return;
+
+                    // После сбоя контрол может быть в неопределённом состоянии — пересоздаём
+                    if (_webView != null)
+                    {
+                        Controls.Remove(_webView);
+                        _webView.Dispose();
+                        _webView = new WebView2 { Dock = DockStyle.Fill };
+                        Controls.Add(_webView);
+                    }
+                }
             }
-            catch (Exception ex)
+        }
+
+        /// <summary>Определяет отсутствие WebView2 Runtime (повторы не помогут).</summary>
+        private static bool IsMissingWebView2Runtime(Exception ex)
+        {
+            // WebView2RuntimeNotFoundException либо COM «Класс не зарегистрирован» (0x80040154)
+            for (Exception e = ex; e != null; e = e.InnerException)
             {
-                Logger.Error("InitWebView", ex);
-                ShowFallback(Loc.T("Err.WebView2", ex.Message));
+                if (e is WebView2RuntimeNotFoundException || e.HResult == unchecked((int)0x80040154))
+                    return true;
             }
+            return false;
+        }
+
+        /// <summary>
+        /// Определяет транзиентную ошибку инициализации WebView2, при которой
+        /// повтор через паузу обычно помогает: E_ABORT (0x80004004),
+        /// ERROR_BUSY (0x800700AA, «запрошенный ресурс занят»),
+        /// ERROR_SHARING_VIOLATION (0x80070020, файл профиля залочен).
+        /// </summary>
+        private static bool IsTransientWebViewError(Exception ex)
+        {
+            for (Exception e = ex; e != null; e = e.InnerException)
+            {
+                int hr = e.HResult;
+                if (hr == unchecked((int)0x80004004) ||
+                    hr == unchecked((int)0x800700AA) ||
+                    hr == unchecked((int)0x80070020))
+                    return true;
+            }
+            return false;
         }
 
         private void ShowFallback(string text)

@@ -85,6 +85,11 @@ namespace MarkdownLister.WLX
                 "Вероятно, на компьютере отсутствует Microsoft Edge WebView2 Runtime.\n" +
                 "Скачайте его: https://developer.microsoft.com/microsoft-edge/webview2/\n\n" +
                 "Подробности: {0}",
+            ["Err.WebView2Runtime"] =
+                "Не установлен Microsoft Edge WebView2 Runtime — без него плагин " +
+                "не может показывать Markdown.\n\n" +
+                "Установите Runtime (бесплатно):\n" +
+                "https://developer.microsoft.com/microsoft-edge/webview2/",
             ["Err.FileNotFound"] = "Файл не найден: ",
             ["Err.LoadFile"] = "Ошибка загрузки файла: ",
             ["Err.FileTooBig"] =
@@ -185,6 +190,11 @@ namespace MarkdownLister.WLX
                 "Microsoft Edge WebView2 Runtime is probably not installed.\n" +
                 "Download it: https://developer.microsoft.com/microsoft-edge/webview2/\n\n" +
                 "Details: {0}",
+            ["Err.WebView2Runtime"] =
+                "Microsoft Edge WebView2 Runtime is not installed — the plugin " +
+                "cannot render Markdown without it.\n\n" +
+                "Install the Runtime (free):\n" +
+                "https://developer.microsoft.com/microsoft-edge/webview2/",
             ["Err.FileNotFound"] = "File not found: ",
             ["Err.LoadFile"] = "Error loading file: ",
             ["Err.FileTooBig"] =
