@@ -195,6 +195,11 @@ Remove-Item (Join-Path $pluginDir 'MarkdownLister.wlx64') -Force -ErrorAction Si
 Copy-Item $wlx86 (Join-Path $pluginDir 'MarkdownLister.wlx') -Force
 Copy-Item $wlx64 (Join-Path $pluginDir 'MarkdownLister.wlx64') -Force
 
+# Файлы из распакованного архива релиза могут нести Zone.Identifier (Mark of
+# the Web) — копирование переносит метку и ломает загрузку зависимостей плагина.
+# Снимаем метку со всех файлов установки.
+Get-ChildItem $pluginDir -Recurse -File | Unblock-File -ErrorAction SilentlyContinue
+
 # --- 4. Регистрация в wincmd.ini ---
 if ($NoRegister) {
     Write-Host 'Регистрация в wincmd.ini пропущена (-NoRegister)'

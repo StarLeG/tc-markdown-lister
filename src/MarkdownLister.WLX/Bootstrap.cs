@@ -84,7 +84,16 @@ namespace MarkdownLister.WLX
             {
                 string name = new AssemblyName(args.Name).Name + ".dll";
                 string path = Path.Combine(_pluginDir ?? ".", name);
-                return File.Exists(path) ? Assembly.LoadFrom(path) : null;
+                if (!File.Exists(path))
+                    return null;
+                // UnsafeLoadFrom, а не LoadFrom: файлы из скачанного архива релиза
+                // несут Zone.Identifier (Mark of the Web), и обычный LoadFrom
+                // отказывается их загружать (FileLoadException, 0x80131515).
+                // Тогда зависимость не резолвится, Plugin..cctor падает и
+                // исключение уходит в Total Commander (крах 0xe0434352).
+                // UnsafeLoadFrom обходит проверку зоны, сохраняя контекст
+                // LoadFrom (Location) — нужен для поиска нативного WebView2Loader.dll.
+                return Assembly.UnsafeLoadFrom(path);
             }
             catch
             {
